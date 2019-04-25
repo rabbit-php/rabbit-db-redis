@@ -11,12 +11,11 @@
   ],
   "require": {
     "rabbit/framework": "dev-master",
-    "rabbit/pool": "dev-master",
     "rabbit/active-record": "dev-master"
   },
   "autoload": {
     "psr-4": {
-      "rabbit\\db\\mysql\\": "src/"
+      "rabbit\\db\\redis\\": "src/"
     }
   }
 }
