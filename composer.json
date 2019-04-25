@@ -1,0 +1,22 @@
+{
+  "name": "rabbit/db-redis",
+  "description": "rabbit db-redis base on yiisoft/db-redis.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "albert",
+      "email": "63851587@qq.com"
+    }
+  ],
+  "require": {
+    "rabbit/framework": "dev-master",
+    "rabbit/pool": "dev-master",
+    "rabbit/active-record": "dev-master"
+  },
+  "autoload": {
+    "psr-4": {
+      "rabbit\\db\\mysql\\": "src/"
+    }
+  }
+}
