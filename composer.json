@@ -11,6 +11,7 @@
   ],
   "require": {
     "rabbit/framework": "dev-master",
+    "rabbit/redis": "dev-master",
     "rabbit/active-record": "dev-master"
   },
   "autoload": {
