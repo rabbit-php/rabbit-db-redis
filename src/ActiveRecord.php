@@ -4,6 +4,7 @@ namespace rabbit\db\redis;
 
 use rabbit\activerecord\BaseActiveRecord;
 use rabbit\core\ObjectFactory;
+use rabbit\db\ConnectionInterface;
 use rabbit\exception\InvalidConfigException;
 use rabbit\helper\Inflector;
 use rabbit\helper\StringHelper;
@@ -21,7 +22,7 @@ class ActiveRecord extends BaseActiveRecord
      * You may override this method if you want to use a different database connection.
      * @return Connection the database connection used by this AR class.
      */
-    public static function getDb(): Connection
+    public static function getDb(): ConnectionInterface
     {
         return getDI('redis');
     }
@@ -78,9 +79,6 @@ class ActiveRecord extends BaseActiveRecord
         if ($runValidation && !$this->validate($attributes)) {
             return false;
         }
-        if (!$this->beforeSave(true)) {
-            return false;
-        }
         $db = static::getDb();
         $values = $this->getDirtyAttributes($attributes);
         $pk = [];
@@ -123,7 +121,6 @@ class ActiveRecord extends BaseActiveRecord
 
         $changedAttributes = array_fill_keys(array_keys($values), null);
         $this->setOldAttributes($values);
-        $this->afterSave(true, $changedAttributes);
 
         return true;
     }
