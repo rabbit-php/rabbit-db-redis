@@ -329,7 +329,7 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         $method = 'build' . $type;
-        $script = $db->getLuaScriptBuilder()->$method($this, $columnName);
+        $script = (new getLuaScriptBuilder())->$method($this, $columnName);
 
         return $db->executeCommand('EVAL', [$script, []]);
     }

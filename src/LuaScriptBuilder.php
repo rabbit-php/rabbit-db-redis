@@ -5,6 +5,7 @@ namespace yii\db\redis;
 use rabbit\core\BaseObject;
 use rabbit\db\Exception;
 use rabbit\db\Expression;
+use rabbit\db\redis\ActiveQuery;
 use rabbit\exception\InvalidArgumentException;
 use rabbit\exception\NotSupportedException;
 
@@ -19,7 +20,7 @@ class LuaScriptBuilder extends BaseObject
      * @param ActiveQuery $query the query used to build the script
      * @return string
      */
-    public function buildAll($query)
+    public function buildAll(ActiveQuery $query): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -33,7 +34,7 @@ class LuaScriptBuilder extends BaseObject
      * @param ActiveQuery $query the query used to build the script
      * @return string
      */
-    public function buildOne($query)
+    public function buildOne(ActiveQuery $query): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -48,7 +49,7 @@ class LuaScriptBuilder extends BaseObject
      * @param string $column name of the column
      * @return string
      */
-    public function buildColumn($query, $column)
+    public function buildColumn(ActiveQuery $query, string $column): string
     {
         // TODO add support for indexBy
         /* @var $modelClass ActiveRecord */
@@ -63,7 +64,7 @@ class LuaScriptBuilder extends BaseObject
      * @param ActiveQuery $query the query used to build the script
      * @return string
      */
-    public function buildCount($query)
+    public function buildCount(ActiveQuery $query): string
     {
         return $this->build($query, 'n=n+1', 'n');
     }
@@ -74,7 +75,7 @@ class LuaScriptBuilder extends BaseObject
      * @param string $column name of the column
      * @return string
      */
-    public function buildSum($query, $column)
+    public function buildSum(ActiveQuery $query, string $column): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -89,7 +90,7 @@ class LuaScriptBuilder extends BaseObject
      * @param string $column name of the column
      * @return string
      */
-    public function buildAverage($query, $column)
+    public function buildAverage(ActiveQuery $query, string $column): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -104,7 +105,7 @@ class LuaScriptBuilder extends BaseObject
      * @param string $column name of the column
      * @return string
      */
-    public function buildMin($query, $column)
+    public function buildMin(ActiveQuery $query, string $column): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -119,7 +120,7 @@ class LuaScriptBuilder extends BaseObject
      * @param string $column name of the column
      * @return string
      */
-    public function buildMax($query, $column)
+    public function buildMax(ActiveQuery $query, string $column): string
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
@@ -135,7 +136,7 @@ class LuaScriptBuilder extends BaseObject
      * @return string
      * @throws NotSupportedException when query contains unsupported order by condition
      */
-    private function build($query, $buildResult, $return)
+    private function build(ActiveQuery $query, string $buildResult, string $return): string
     {
         $columns = [];
         if ($query->where !== null) {
@@ -209,7 +210,7 @@ EOF;
      * @param array $columns list of columns given by reference
      * @return string the alias generated for the column name
      */
-    private function addColumn($column, &$columns)
+    private function addColumn(string $column, array &$columns): string
     {
         if (isset($columns[$column])) {
             return $columns[$column];
@@ -225,7 +226,7 @@ EOF;
      * @param string $str string to be quoted
      * @return string the properly quoted string
      */
-    private function quoteValue($str)
+    private function quoteValue(string $str): string
     {
         if (!is_string($str) && !is_int($str)) {
             return $str;
@@ -240,10 +241,10 @@ EOF;
      * on how to specify a condition.
      * @param array $columns the list of columns and aliases to be used
      * @return string the generated SQL expression
-     * @throws \yii\db\Exception if the condition is in bad format
-     * @throws \yii\exceptions\NotSupportedException if the condition is not an array
+     * @throws \rabbit\db\Exception if the condition is in bad format
+     * @throws \rabbit\exception\NotSupportedException if the condition is not an array
      */
-    public function buildCondition($condition, &$columns)
+    public function buildCondition(string $condition, array &$columns): string
     {
         static $builders = [
             'not' => 'buildNotCondition',
@@ -278,7 +279,13 @@ EOF;
         }
     }
 
-    private function buildHashCondition($condition, &$columns)
+    /**
+     * @param array $condition
+     * @param array $columns
+     * @return string
+     * @throws Exception
+     */
+    private function buildHashCondition(array $condition, array &$columns): string
     {
         $parts = [];
         foreach ($condition as $column => $value) {
@@ -304,7 +311,15 @@ EOF;
         return count($parts) === 1 ? $parts[0] : '(' . implode(') and (', $parts) . ')';
     }
 
-    private function buildNotCondition($operator, $operands, &$params)
+    /**
+     * @param string $operator
+     * @param array $operands
+     * @param array $params
+     * @return string
+     * @throws Exception
+     * @throws NotSupportedException
+     */
+    private function buildNotCondition(string $operator, array $operands, array &$params): string
     {
         if (count($operands) != 1) {
             throw new InvalidArgumentException("Operator '$operator' requires exactly one operand.");
@@ -318,7 +333,15 @@ EOF;
         return "$operator ($operand)";
     }
 
-    private function buildAndCondition($operator, $operands, &$columns)
+    /**
+     * @param string $operator
+     * @param array $operands
+     * @param array $columns
+     * @return string
+     * @throws Exception
+     * @throws NotSupportedException
+     */
+    private function buildAndCondition(string $operator, array $operands, array &$columns): string
     {
         $parts = [];
         foreach ($operands as $operand) {
@@ -336,7 +359,14 @@ EOF;
         }
     }
 
-    private function buildBetweenCondition($operator, $operands, &$columns)
+    /**
+     * @param string $operator
+     * @param array $operands
+     * @param array $columns
+     * @return string
+     * @throws Exception
+     */
+    private function buildBetweenCondition(string $operator, array $operands, array &$columns): string
     {
         if (!isset($operands[0], $operands[1], $operands[2])) {
             throw new Exception("Operator '$operator' requires three operands.");
@@ -352,7 +382,14 @@ EOF;
         return $operator === 'not between' ? "not ($condition)" : $condition;
     }
 
-    private function buildInCondition($operator, $operands, &$columns)
+    /**
+     * @param string $operator
+     * @param array $operands
+     * @param array $columns
+     * @return string
+     * @throws Exception
+     */
+    private function buildInCondition(string $operator, array $operands, array &$columns)
     {
         if (!isset($operands[0], $operands[1])) {
             throw new Exception("Operator '$operator' requires two operands.");
@@ -391,7 +428,14 @@ EOF;
         return "$operator(" . implode(' or ', $parts) . ')';
     }
 
-    protected function buildCompositeInCondition($operator, $inColumns, $values, &$columns)
+    /**
+     * @param string $operator
+     * @param array $inColumns
+     * @param array $values
+     * @param array $columns
+     * @return string
+     */
+    protected function buildCompositeInCondition(string $operator, array $inColumns, array $values, array &$columns): string
     {
         $vss = [];
         foreach ($values as $value) {
@@ -411,7 +455,13 @@ EOF;
         return "$operator(" . implode(' or ', $vss) . ')';
     }
 
-    private function buildLikeCondition($operator, $operands, &$columns)
+    /**
+     * @param string $operator
+     * @param array $operands
+     * @param array $columns
+     * @throws NotSupportedException
+     */
+    private function buildLikeCondition(string $operator, array $operands, array &$columns)
     {
         throw new NotSupportedException('LIKE conditions are not suppoerted by redis ActiveRecord.');
     }
