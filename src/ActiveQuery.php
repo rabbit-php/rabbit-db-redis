@@ -9,6 +9,7 @@ use rabbit\db\QueryTrait;
 use rabbit\exception\InvalidArgumentException;
 use rabbit\exception\NotSupportedException;
 use rabbit\redis\Connection;
+use yii\db\redis\LuaScriptBuilder;
 
 /**
  * Class ActiveQuery
@@ -329,7 +330,7 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         $method = 'build' . $type;
-        $script = (new getLuaScriptBuilder())->$method($this, $columnName);
+        $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
         return $db->executeCommand('EVAL', [$script, []]);
     }
