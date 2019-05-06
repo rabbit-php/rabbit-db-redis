@@ -37,7 +37,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return array|ActiveRecord[] the query results. If the query results in nothing, an empty array will be returned.
      */
-    public function all(Connection $db = null)
+    public function all($db = null)
     {
         if ($this->emulateExecution) {
             return [];
@@ -98,7 +98,7 @@ class ActiveQuery implements ActiveQueryInterface
      * the query result may be either an array or an ActiveRecord object. Null will be returned
      * if the query results in nothing.
      */
-    public function one(Connection $db = null)
+    public function one($db = null)
     {
         if ($this->emulateExecution) {
             return null;
@@ -142,7 +142,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int number of records
      */
-    public function count(string $q = '*', Connection $db = null): int
+    public function count(string $q = '*', $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -167,7 +167,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return bool whether the query result contains any row of data.
      */
-    public function exists(Connection $db = null): bool
+    public function exists($db = null): bool
     {
         if ($this->emulateExecution) {
             return false;
@@ -182,7 +182,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return array the first column of the query result. An empty array is returned if the query results in nothing.
      */
-    public function column(string $column, Connection $db = null): array
+    public function column(string $column, $db = null): array
     {
         if ($this->emulateExecution) {
             return [];
@@ -199,7 +199,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int number of records
      */
-    public function sum(string $column, Connection $db = null): int
+    public function sum(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -216,7 +216,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the average of the specified column values.
      */
-    public function average(string $column, Connection $db = null): int
+    public function average(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -232,7 +232,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the minimum of the specified column values.
      */
-    public function min(string $column, Connection $db = null): int
+    public function min(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return null;
@@ -248,7 +248,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the maximum of the specified column values.
      */
-    public function max(string $column, Connection $db = null): int
+    public function max(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return null;
@@ -265,7 +265,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @return string the value of the specified attribute in the first record of the query result.
      * Null is returned if the query result is empty.
      */
-    public function scalar(string $attribute, Connection $db = null): ?string
+    public function scalar(string $attribute, $db = null): ?string
     {
         if ($this->emulateExecution) {
             return null;
