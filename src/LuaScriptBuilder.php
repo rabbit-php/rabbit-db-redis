@@ -1,19 +1,17 @@
 <?php
 
-namespace yii\db\redis;
+namespace rabbit\db\redis;
 
-use rabbit\core\BaseObject;
 use rabbit\db\Exception;
 use rabbit\db\Expression;
-use rabbit\db\redis\ActiveQuery;
 use rabbit\exception\InvalidArgumentException;
 use rabbit\exception\NotSupportedException;
 
 /**
  * Class LuaScriptBuilder
- * @package yii\db\redis
+ * @package rabbit\db\redis
  */
-class LuaScriptBuilder extends BaseObject
+class LuaScriptBuilder
 {
     /**
      * Builds a Lua script for finding a list of records
@@ -244,7 +242,7 @@ EOF;
      * @throws \rabbit\db\Exception if the condition is in bad format
      * @throws \rabbit\exception\NotSupportedException if the condition is not an array
      */
-    public function buildCondition(string $condition, array &$columns): string
+    public function buildCondition($condition, array &$columns): string
     {
         static $builders = [
             'not' => 'buildNotCondition',

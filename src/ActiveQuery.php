@@ -5,12 +5,9 @@ namespace rabbit\db\redis;
 use rabbit\activerecord\ActiveQueryInterface;
 use rabbit\activerecord\ActiveQueryTrait;
 use rabbit\activerecord\ActiveRelationTrait;
-use rabbit\db\ConnectionInterface;
 use rabbit\db\QueryTrait;
 use rabbit\exception\InvalidArgumentException;
 use rabbit\exception\NotSupportedException;
-use rabbit\redis\Connection;
-use yii\db\redis\LuaScriptBuilder;
 
 /**
  * Class ActiveQuery
@@ -82,11 +79,6 @@ class ActiveQuery implements ActiveQueryInterface
             }
             $models = $indexedModels;
         }
-        if (!$this->asArray) {
-            foreach ($models as $model) {
-                $model->afterFind();
-            }
-        }
 
         return $models;
     }
@@ -128,9 +120,6 @@ class ActiveQuery implements ActiveQueryInterface
             $models = [$model];
             $this->findWith($this->with, $models);
             $model = $models[0];
-        }
-        if (!$this->asArray) {
-            $model->afterFind();
         }
 
         return $model;
@@ -183,7 +172,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return array the first column of the query result. An empty array is returned if the query results in nothing.
      */
-    public function column(string $column, ConnectionInterface $db = null): array
+    public function column(string $column, $db = null): array
     {
         if ($this->emulateExecution) {
             return [];
@@ -200,7 +189,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int number of records
      */
-    public function sum(string $column, ConnectionInterface $db = null): int
+    public function sum(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -217,7 +206,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the average of the specified column values.
      */
-    public function average(string $column, ConnectionInterface $db = null): int
+    public function average(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -233,7 +222,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the minimum of the specified column values.
      */
-    public function min(string $column, ConnectionInterface $db = null): int
+    public function min(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return null;
@@ -249,7 +238,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the maximum of the specified column values.
      */
-    public function max(string $column, ConnectionInterface $db = null): int
+    public function max(string $column, $db = null): int
     {
         if ($this->emulateExecution) {
             return null;
@@ -266,7 +255,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @return string the value of the specified attribute in the first record of the query result.
      * Null is returned if the query result is empty.
      */
-    public function scalar(string $attribute, ConnectionInterface $db = null): ?string
+    public function scalar(string $attribute, $db = null): ?string
     {
         if ($this->emulateExecution) {
             return null;
@@ -289,7 +278,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @return array|bool|null|string
      * @throws NotSupportedException
      */
-    protected function executeScript(Connection $db, string $type, string $columnName = null)
+    protected function executeScript($db, string $type, string $columnName = null)
     {
         if ($this->primaryModel !== null) {
             // lazy loading
@@ -333,7 +322,8 @@ class ActiveQuery implements ActiveQueryInterface
         $method = 'build' . $type;
         $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
-        return $db->executeCommand('EVAL', [$script, []]);
+        return $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand('EVAL',
+            [$script, []]);
     }
 
     /**
@@ -346,7 +336,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @throws \rabbit\exception\InvalidArgumentException
      * @throws \rabbit\exception\NotSupportedException
      */
-    private function findByPk(Connection $db, string $type, string $columnName = null)
+    private function findByPk($db, string $type, string $columnName = null)
     {
         $needSort = !empty($this->orderBy) && in_array($type, ['All', 'One', 'Column']);
         if ($needSort) {

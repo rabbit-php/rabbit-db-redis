@@ -5,13 +5,12 @@ namespace rabbit\db\redis;
 
 
 use rabbit\db\ConnectionInterface;
-use rabbit\redis\Redis;
 
 /**
- * Class Connection
+ * Class Redis
  * @package rabbit\db\redis
  */
-class Connection extends Redis implements ConnectionInterface
+class Redis extends \rabbit\redis\Redis implements ConnectionInterface
 {
 
 }

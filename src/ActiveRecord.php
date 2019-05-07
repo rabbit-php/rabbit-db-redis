@@ -8,7 +8,6 @@ use rabbit\db\ConnectionInterface;
 use rabbit\exception\InvalidConfigException;
 use rabbit\helper\Inflector;
 use rabbit\helper\StringHelper;
-use rabbit\redis\Connection;
 
 /**
  * Class ActiveRecord
@@ -22,7 +21,7 @@ class ActiveRecord extends BaseActiveRecord
      * You may override this method if you want to use a different database connection.
      * @return Connection the database connection used by this AR class.
      */
-    public static function getDb(): ConnectionInterface
+    public static function getDb()
     {
         return getDI('redis');
     }
@@ -33,7 +32,7 @@ class ActiveRecord extends BaseActiveRecord
      */
     public static function find(): ActiveQuery
     {
-        return ObjectFactory::createObject(ActiveQuery::class, [get_called_class()]);
+        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()]);
     }
 
     /**
@@ -109,14 +108,22 @@ class ActiveRecord extends BaseActiveRecord
                 if (is_bool($value)) {
                     $value = (int)$value;
                 }
-                $setArgs[] = $attribute;
-                $setArgs[] = $value;
+                if ($db instanceof Redis) {
+                    $setArgs[$attribute] = $value;
+                } else {
+                    $setArgs[] = $attribute;
+                    $setArgs[] = $value;
+                }
             }
         }
 
         if (count($setArgs) > 1) {
-            $hash = array_shift($setArgs);
-            $db->executeCommand('HMSET', [$hash, $setArgs]);
+            if ($db instanceof Redis) {
+                $db->executeCommand('HMSET', $setArgs);
+            } else {
+                $hash = array_shift($setArgs);
+                $db->executeCommand('HMSET', [$hash, $setArgs]);
+            }
         }
 
         $changedAttributes = array_fill_keys(array_keys($values), null);
@@ -160,8 +167,12 @@ class ActiveRecord extends BaseActiveRecord
                     if (is_bool($value)) {
                         $value = (int)$value;
                     }
-                    $setArgs[] = $attribute;
-                    $setArgs[] = $value;
+                    if ($db instanceof Redis) {
+                        $setArgs[$attribute] = $value;
+                    } else {
+                        $setArgs[] = $attribute;
+                        $setArgs[] = $value;
+                    }
                 } else {
                     $delArgs[] = $attribute;
                 }
@@ -172,12 +183,20 @@ class ActiveRecord extends BaseActiveRecord
             if ($newPk != $pk) {
                 $db->executeCommand('MULTI');
                 if (count($setArgs) > 1) {
-                    $hash = array_shift($setArgs);
-                    $db->executeCommand('HMSET', [$hash, $setArgs]);
+                    if ($db instanceof Redis) {
+                        $db->executeCommand('HMSET', $setArgs);
+                    } else {
+                        $hash = array_shift($setArgs);
+                        $db->executeCommand('HMSET', [$hash, $setArgs]);
+                    }
                 }
                 if (count($delArgs) > 1) {
-                    $hash = array_shift($delArgs);
-                    $db->executeCommand('HDEL', [$hash, $delArgs]);
+                    if ($db instanceof Redis) {
+                        $db->executeCommand('HDEL', $delArgs);
+                    } else {
+                        $hash = array_shift($setArgs);
+                        $db->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                    }
                 }
                 $db->executeCommand('LINSERT', [static::keyPrefix(), 'AFTER', $pk, $newPk]);
                 $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
@@ -185,12 +204,20 @@ class ActiveRecord extends BaseActiveRecord
                 $db->executeCommand('EXEC');
             } else {
                 if (count($setArgs) > 1) {
-                    $hash = array_shift($setArgs);
-                    $db->executeCommand('HMSET', [$hash, $setArgs]);
+                    if ($db instanceof Redis) {
+                        $db->executeCommand('HMSET', $setArgs);
+                    } else {
+                        $hash = array_shift($setArgs);
+                        $db->executeCommand('HMSET', [$hash, implode(' ', $delArgs)]);
+                    }
                 }
                 if (count($delArgs) > 1) {
-                    $hash = array_shift($delArgs);
-                    $db->executeCommand('HDEL', [$hash, $delArgs]);
+                    if ($db instanceof Redis) {
+                        $db->executeCommand('HDEL', $delArgs);
+                    } else {
+                        $hash = array_shift($setArgs);
+                        $db->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                    }
                 }
             }
             $n++;
