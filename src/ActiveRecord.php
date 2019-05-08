@@ -4,7 +4,6 @@ namespace rabbit\db\redis;
 
 use rabbit\activerecord\BaseActiveRecord;
 use rabbit\core\ObjectFactory;
-use rabbit\db\ConnectionInterface;
 use rabbit\exception\InvalidConfigException;
 use rabbit\helper\Inflector;
 use rabbit\helper\StringHelper;
@@ -32,7 +31,7 @@ class ActiveRecord extends BaseActiveRecord
      */
     public static function find(): ActiveQuery
     {
-        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()]);
+        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()], false);
     }
 
     /**
