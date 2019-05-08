@@ -198,7 +198,11 @@ class ActiveRecord extends BaseActiveRecord
                     }
                 }
                 $db->executeCommand('LINSERT', [static::keyPrefix(), 'AFTER', $pk, $newPk]);
-                $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                if ($db instanceof Redis) {
+                    $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                } else {
+                    $db->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+                }
                 $db->executeCommand('RENAME', [$key, $newKey]);
                 $db->executeCommand('EXEC');
             } else {
@@ -283,7 +287,12 @@ class ActiveRecord extends BaseActiveRecord
         $db->executeCommand('MULTI');
         foreach ($pks as $pk) {
             $pk = static::buildKey($pk);
-            $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+            if ($db instanceof Redis) {
+                $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+            } else {
+                $db->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+            }
+
             $attributeKeys[] = static::keyPrefix() . ':a:' . $pk;
         }
         $db->executeCommand('DEL', $attributeKeys);
