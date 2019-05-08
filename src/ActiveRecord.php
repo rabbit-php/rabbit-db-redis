@@ -208,7 +208,7 @@ class ActiveRecord extends BaseActiveRecord
                         $db->executeCommand('HMSET', $setArgs);
                     } else {
                         $hash = array_shift($setArgs);
-                        $db->executeCommand('HMSET', [$hash, implode(' ', $delArgs)]);
+                        $db->executeCommand('HMSET', [$hash, $setArgs]);
                     }
                 }
                 if (count($delArgs) > 1) {
