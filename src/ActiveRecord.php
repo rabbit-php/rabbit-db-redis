@@ -109,10 +109,10 @@ class ActiveRecord extends BaseActiveRecord
                     $value = (int)$value;
                 }
                 if ($db instanceof Redis) {
-                    $setArgs[$attribute] = $value;
-                } else {
                     $setArgs[] = $attribute;
                     $setArgs[] = $value;
+                } else {
+                    $setArgs[$attribute] = $value;
                 }
             }
         }
@@ -168,10 +168,10 @@ class ActiveRecord extends BaseActiveRecord
                         $value = (int)$value;
                     }
                     if ($db instanceof Redis) {
-                        $setArgs[$attribute] = $value;
-                    } else {
                         $setArgs[] = $attribute;
                         $setArgs[] = $value;
+                    } else {
+                        $setArgs[$attribute] = $value;
                     }
                 } else {
                     $delArgs[] = $attribute;
