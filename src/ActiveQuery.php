@@ -84,192 +84,6 @@ class ActiveQuery implements ActiveQueryInterface
     }
 
     /**
-     * Executes the query and returns a single row of result.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return ActiveRecord|array|null a single row of query result. Depending on the setting of [[asArray]],
-     * the query result may be either an array or an ActiveRecord object. Null will be returned
-     * if the query results in nothing.
-     */
-    public function one($db = null)
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-
-        // TODO add support for orderBy
-        $data = $this->executeScript($db, 'One');
-        if (empty($data)) {
-            return null;
-        }
-        $row = [];
-        $c = count($data);
-        for ($i = 0; $i < $c;) {
-            $row[$data[$i++]] = $data[$i++];
-        }
-        if ($this->asArray) {
-            $model = $row;
-        } else {
-            /* @var $class ActiveRecord */
-            $class = $this->modelClass;
-            $model = $class::instantiate($row);
-            $class = get_class($model);
-            $class::populateRecord($model, $row);
-        }
-        if (!empty($this->with)) {
-            $models = [$model];
-            $this->findWith($this->with, $models);
-            $model = $models[0];
-        }
-
-        return $model;
-    }
-
-    /**
-     * Returns the number of records.
-     * @param string $q the COUNT expression. This parameter is ignored by this implementation.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int number of records
-     */
-    public function count($q = '*', $db = null): int
-    {
-        if ($this->emulateExecution) {
-            return 0;
-        }
-
-        if ($this->where === null) {
-            /* @var $modelClass ActiveRecord */
-            $modelClass = $this->modelClass;
-            if ($db === null) {
-                $db = $modelClass::getDb();
-            }
-
-            return $db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
-        } else {
-            return $this->executeScript($db, 'Count');
-        }
-    }
-
-    /**
-     * Returns a value indicating whether the query result contains any row of data.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return bool whether the query result contains any row of data.
-     */
-    public function exists($db = null): bool
-    {
-        if ($this->emulateExecution) {
-            return false;
-        }
-        return $this->one($db) !== null;
-    }
-
-    /**
-     * Executes the query and returns the first column of the result.
-     * @param string $column name of the column to select
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return array the first column of the query result. An empty array is returned if the query results in nothing.
-     */
-    public function column(string $column, $db = null): array
-    {
-        if ($this->emulateExecution) {
-            return [];
-        }
-
-        // TODO add support for orderBy
-        return $this->executeScript($db, 'Column', $column);
-    }
-
-    /**
-     * Returns the number of records.
-     * @param string $column the column to sum up
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int number of records
-     */
-    public function sum(string $column, $db = null): int
-    {
-        if ($this->emulateExecution) {
-            return 0;
-        }
-
-        return $this->executeScript($db, 'Sum', $column);
-    }
-
-    /**
-     * Returns the average of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the average of the specified column values.
-     */
-    public function average(string $column, $db = null): int
-    {
-        if ($this->emulateExecution) {
-            return 0;
-        }
-        return $this->executeScript($db, 'Average', $column);
-    }
-
-    /**
-     * Returns the minimum of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the minimum of the specified column values.
-     */
-    public function min(string $column, $db = null): int
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-        return $this->executeScript($db, 'Min', $column);
-    }
-
-    /**
-     * Returns the maximum of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the maximum of the specified column values.
-     */
-    public function max(string $column, $db = null): int
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-        return $this->executeScript($db, 'Max', $column);
-    }
-
-    /**
-     * Returns the query result as a scalar value.
-     * The value returned will be the specified attribute in the first record of the query results.
-     * @param string $attribute name of the attribute to select
-     * @param Connection $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return string the value of the specified attribute in the first record of the query result.
-     * Null is returned if the query result is empty.
-     */
-    public function scalar(string $attribute, $db = null): ?string
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-
-        $record = $this->one($db);
-        if ($record !== null) {
-            return $record->hasAttribute($attribute) ? $record->$attribute : null;
-        } else {
-            return null;
-        }
-    }
-
-    /**
      * Executes a script created by [[LuaScriptBuilder]]
      * @param Connection|null $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
@@ -324,6 +138,48 @@ class ActiveQuery implements ActiveQueryInterface
 
         return $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand('EVAL',
             [$script, []]);
+    }
+
+    /**
+     * Executes the query and returns a single row of result.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return ActiveRecord|array|null a single row of query result. Depending on the setting of [[asArray]],
+     * the query result may be either an array or an ActiveRecord object. Null will be returned
+     * if the query results in nothing.
+     */
+    public function one($db = null)
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+
+        // TODO add support for orderBy
+        $data = $this->executeScript($db, 'One');
+        if (empty($data)) {
+            return null;
+        }
+        $row = [];
+        $c = count($data);
+        for ($i = 0; $i < $c;) {
+            $row[$data[$i++]] = $data[$i++];
+        }
+        if ($this->asArray) {
+            $model = $row;
+        } else {
+            /* @var $class ActiveRecord */
+            $class = $this->modelClass;
+            $model = $class::instantiate($row);
+            $class = get_class($model);
+            $class::populateRecord($model, $row);
+        }
+        if (!empty($this->with)) {
+            $models = [$model];
+            $this->findWith($this->with, $models);
+            $model = $models[0];
+        }
+
+        return $model;
     }
 
     /**
@@ -488,5 +344,149 @@ class ActiveQuery implements ActiveQueryInterface
                 return $max;
         }
         throw new InvalidArgumentException('Unknown fetch type: ' . $type);
+    }
+
+    /**
+     * Returns the number of records.
+     * @param string $q the COUNT expression. This parameter is ignored by this implementation.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return int number of records
+     */
+    public function count($q = '*', $db = null): int
+    {
+        if ($this->emulateExecution) {
+            return 0;
+        }
+
+        if ($this->where === null) {
+            /* @var $modelClass ActiveRecord */
+            $modelClass = $this->modelClass;
+            if ($db === null) {
+                $db = $modelClass::getDb();
+            }
+
+            return $db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
+        } else {
+            return $this->executeScript($db, 'Count');
+        }
+    }
+
+    /**
+     * Returns a value indicating whether the query result contains any row of data.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return bool whether the query result contains any row of data.
+     */
+    public function exists($db = null): bool
+    {
+        if ($this->emulateExecution) {
+            return false;
+        }
+        return $this->one($db) !== null;
+    }
+
+    /**
+     * Executes the query and returns the first column of the result.
+     * @param string $column name of the column to select
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return array the first column of the query result. An empty array is returned if the query results in nothing.
+     */
+    public function column(string $column, $db = null): array
+    {
+        if ($this->emulateExecution) {
+            return [];
+        }
+
+        // TODO add support for orderBy
+        return $this->executeScript($db, 'Column', $column);
+    }
+
+    /**
+     * Returns the number of records.
+     * @param string $column the column to sum up
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return int number of records
+     */
+    public function sum(string $column, $db = null): int
+    {
+        if ($this->emulateExecution) {
+            return 0;
+        }
+
+        return $this->executeScript($db, 'Sum', $column);
+    }
+
+    /**
+     * Returns the average of the specified column values.
+     * @param string $column the column name or expression.
+     * Make sure you properly quote column names in the expression.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return int the average of the specified column values.
+     */
+    public function average(string $column, $db = null): int
+    {
+        if ($this->emulateExecution) {
+            return 0;
+        }
+        return $this->executeScript($db, 'Average', $column);
+    }
+
+    /**
+     * Returns the minimum of the specified column values.
+     * @param string $column the column name or expression.
+     * Make sure you properly quote column names in the expression.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return int the minimum of the specified column values.
+     */
+    public function min(string $column, $db = null): int
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+        return $this->executeScript($db, 'Min', $column);
+    }
+
+    /**
+     * Returns the maximum of the specified column values.
+     * @param string $column the column name or expression.
+     * Make sure you properly quote column names in the expression.
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return int the maximum of the specified column values.
+     */
+    public function max(string $column, $db = null): int
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+        return $this->executeScript($db, 'Max', $column);
+    }
+
+    /**
+     * Returns the query result as a scalar value.
+     * The value returned will be the specified attribute in the first record of the query results.
+     * @param string $attribute name of the attribute to select
+     * @param Connection $db the database connection used to execute the query.
+     * If this parameter is not given, the `db` application component will be used.
+     * @return string the value of the specified attribute in the first record of the query result.
+     * Null is returned if the query result is empty.
+     */
+    public function scalar(string $attribute, $db = null): ?string
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+
+        $record = $this->one($db);
+        if ($record !== null) {
+            return $record->hasAttribute($attribute) ? $record->$attribute : null;
+        } else {
+            return null;
+        }
     }
 }

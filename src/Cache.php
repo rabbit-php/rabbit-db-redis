@@ -10,13 +10,14 @@ namespace rabbit\db\redis;
 
 
 use Psr\SimpleCache\CacheInterface;
+use rabbit\cache\AbstractCache;
 use rabbit\core\ObjectFactory;
 
 /**
  * Class Cache
  * @package rabbit\db\redis
  */
-class Cache implements CacheInterface
+class Cache extends AbstractCache implements CacheInterface
 {
     /** @var Redis */
     private $client;
@@ -27,6 +28,7 @@ class Cache implements CacheInterface
      */
     public function __construct()
     {
+        parent::__construct();
         $this->client = ObjectFactory::get('redis');
     }
 
@@ -37,6 +39,7 @@ class Cache implements CacheInterface
      */
     public function get($key, $default = null)
     {
+        $key = $this->buildKey($key);
         $result = $this->client->executeCommand('GET', [$key]);
         if ($result === false || $result === null) {
             return $default;
@@ -53,12 +56,13 @@ class Cache implements CacheInterface
      */
     public function set($key, $value, $ttl = null)
     {
+        $key = $this->buildKey($key);
         if ($ttl === 0) {
-            return (bool) $this->client->executeCommand('SET', [$key, $value]);
+            return (bool)$this->client->executeCommand('SET', [$key, $value]);
         } else {
-            $ttl = (int) ($ttl * 1000);
+            $ttl = (int)($ttl * 1000);
 
-            return (bool) $this->client->executeCommand('SET', [$key, $value, 'PX', $ttl]);
+            return (bool)$this->client->executeCommand('SET', [$key, $value, 'PX', $ttl]);
         }
     }
 
@@ -68,6 +72,7 @@ class Cache implements CacheInterface
      */
     public function delete($key)
     {
+        $this->buildKey($key);
         return (bool)$this->client->executeCommand('DEL', [$key]);
     }
 
@@ -86,7 +91,11 @@ class Cache implements CacheInterface
      */
     public function getMultiple($keys, $default = null)
     {
-        $response = $this->client->executeCommand('MGET', $keys);
+        $newKeys = [];
+        foreach ($keys as $key) {
+            $newKeys[] = $this->buildKey($key);
+        }
+        $response = $this->client->executeCommand('MGET', $newKeys);
         $result = [];
         $i = 0;
         foreach ($keys as $key) {
@@ -105,7 +114,7 @@ class Cache implements CacheInterface
     {
         $args = [];
         foreach ($values as $key => $value) {
-            $args[] = $key;
+            $args[] = $this->buildKey($key);
             $args[] = $value;
         }
 
@@ -113,7 +122,7 @@ class Cache implements CacheInterface
         if ($ttl == 0) {
             $this->client->executeCommand('MSET', $args);
         } else {
-            $ttl = (int) ($ttl * 1000);
+            $ttl = (int)($ttl * 1000);
             $this->client->executeCommand('MULTI');
             $this->client->executeCommand('MSET', $args);
             $index = [];
@@ -140,13 +149,11 @@ class Cache implements CacheInterface
      */
     public function deleteMultiple($keys)
     {
-        $result = true;
+        $newKeys = [];
         foreach ($keys as $key) {
-            if (!$this->delete($key)) {
-                $result = false;
-            }
+            $newKeys[] = $this->buildKey($key);
         }
-        return $result;
+        return (bool)$this->client->executeCommand('DEL', $newKeys);
     }
 
     /**
@@ -155,16 +162,7 @@ class Cache implements CacheInterface
      */
     public function has($key)
     {
-        $value = $this->getValue($key);
+        $value = $this->getValue($this->buildKey($key));
         return $value !== false;
-    }
-
-    /**
-     * @param $ttl
-     * @return int
-     */
-    private function getTtl($ttl): int
-    {
-        return ($ttl === null) ? 0 : (int)$ttl;
     }
 }

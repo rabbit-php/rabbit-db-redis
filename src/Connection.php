@@ -710,74 +710,6 @@ class Connection extends AbstractConnection
     }
 
     /**
-     * @param string $uri
-     * @return array
-     * @throws \rabbit\core\Exception
-     */
-    protected function parseUri(string $uri): array
-    {
-        $parseAry = parse_url($uri);
-        if (!isset($parseAry['host']) || !isset($parseAry['port'])) {
-            $error = sprintf('Redis Connection format is incorrect uri=%s, eg:tcp://127.0.0.1:6379/1?password=password',
-                $uri);
-            throw new Exception($error);
-        }
-        isset($parseAry['path']) && $parseAry['db'] = str_replace('/', '', $parseAry['path']);
-        $query = $parseAry['query'] ?? '';
-        parse_str($query, $options);
-        $configs = array_merge($parseAry, $options);
-        unset($configs['path']);
-        unset($configs['query']);
-
-        return $configs;
-    }
-
-    /**
-     * Establishes a DB connection.
-     * It does nothing if a DB connection has already been established.
-     * @throws Exception if connection fails
-     */
-    public function open()
-    {
-        if ($this->_socket !== false) {
-            return;
-        }
-        $this->connectionTimeout = $this->dataTimeout = $this->pool->getTimeout();
-        $address = $this->pool->getConnectionAddress();
-        $config = $this->parseUri($address);
-
-        $this->hostname = $config['host'];
-        $this->port = (int)$config['port'];
-        $this->database = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
-        $this->password = isset($config['password']) ? $config['password'] : null;
-        $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
-        App::debug('Opening redis DB connection: ' . $connection, 'redis');
-        $this->_socket = @stream_socket_client(
-            $this->unixSocket ? 'unix://' . $this->unixSocket : 'tcp://' . $this->hostname . ':' . $this->port,
-            $errorNumber,
-            $errorDescription,
-            $this->connectionTimeout ? $this->connectionTimeout : ini_get('default_socket_timeout'),
-            $this->socketClientFlags
-        );
-        if ($this->_socket) {
-            if ($this->dataTimeout !== null) {
-                stream_set_timeout($this->_socket, $timeout = (int)$this->dataTimeout,
-                    (int)(($this->dataTimeout - $timeout) * 1000000));
-            }
-            if ($this->password !== null) {
-                $this->executeCommand('AUTH', [$this->password]);
-            }
-            if ($this->database !== null) {
-                $this->executeCommand('SELECT', [$this->database]);
-            }
-        } else {
-            App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
-            $message = getDI('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
-            throw new Exception($message, $errorDescription, $errorNumber);
-        }
-    }
-
-    /**
      * Closes the currently active DB connection.
      * It does nothing if the connection is already closed.
      */
@@ -793,27 +725,6 @@ class Connection extends AbstractConnection
             }
             fclose($this->_socket);
             $this->_socket = false;
-        }
-    }
-
-    /**
-     * Allows issuing all supported commands via magic methods.
-     *
-     * ```php
-     * $redis->hmset('test_collection', 'key1', 'val1', 'key2', 'val2')
-     * ```
-     *
-     * @param string $name name of the missing method to execute
-     * @param array $params method call arguments
-     * @return mixed
-     */
-    public function __call($name, $params)
-    {
-        $redisCommand = strtoupper(Inflector::camel2words($name, false));
-        if (in_array($redisCommand, $this->redisCommands)) {
-            return $this->executeCommand($redisCommand, $params);
-        } else {
-            return parent::__call($name, $params);
         }
     }
 
@@ -872,6 +783,74 @@ class Connection extends AbstractConnection
             }
         }
         return $this->sendCommandInternal($command, $params);
+    }
+
+    /**
+     * Establishes a DB connection.
+     * It does nothing if a DB connection has already been established.
+     * @throws Exception if connection fails
+     */
+    public function open()
+    {
+        if ($this->_socket !== false) {
+            return;
+        }
+        $this->connectionTimeout = $this->dataTimeout = $this->pool->getTimeout();
+        $address = $this->pool->getConnectionAddress();
+        $config = $this->parseUri($address);
+
+        $this->hostname = $config['host'];
+        $this->port = (int)$config['port'];
+        $this->database = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
+        $this->password = isset($config['password']) ? $config['password'] : null;
+        $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
+        App::debug('Opening redis DB connection: ' . $connection, 'redis');
+        $this->_socket = @stream_socket_client(
+            $this->unixSocket ? 'unix://' . $this->unixSocket : 'tcp://' . $this->hostname . ':' . $this->port,
+            $errorNumber,
+            $errorDescription,
+            $this->connectionTimeout ? $this->connectionTimeout : ini_get('default_socket_timeout'),
+            $this->socketClientFlags
+        );
+        if ($this->_socket) {
+            if ($this->dataTimeout !== null) {
+                stream_set_timeout($this->_socket, $timeout = (int)$this->dataTimeout,
+                    (int)(($this->dataTimeout - $timeout) * 1000000));
+            }
+            if ($this->password !== null) {
+                $this->executeCommand('AUTH', [$this->password]);
+            }
+            if ($this->database !== null) {
+                $this->executeCommand('SELECT', [$this->database]);
+            }
+        } else {
+            App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
+            $message = getDI('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
+            throw new Exception($message, $errorDescription, $errorNumber);
+        }
+    }
+
+    /**
+     * @param string $uri
+     * @return array
+     * @throws \rabbit\core\Exception
+     */
+    protected function parseUri(string $uri): array
+    {
+        $parseAry = parse_url($uri);
+        if (!isset($parseAry['host']) || !isset($parseAry['port'])) {
+            $error = sprintf('Redis Connection format is incorrect uri=%s, eg:tcp://127.0.0.1:6379/1?password=password',
+                $uri);
+            throw new Exception($error);
+        }
+        isset($parseAry['path']) && $parseAry['db'] = str_replace('/', '', $parseAry['path']);
+        $query = $parseAry['query'] ?? '';
+        parse_str($query, $options);
+        $configs = array_merge($parseAry, $options);
+        unset($configs['path']);
+        unset($configs['query']);
+
+        return $configs;
     }
 
     /**
@@ -939,6 +918,27 @@ class Connection extends AbstractConnection
                 return $data;
             default:
                 throw new Exception('Received illegal data from redis: ' . $line . "\nRedis command was: " . $command);
+        }
+    }
+
+    /**
+     * Allows issuing all supported commands via magic methods.
+     *
+     * ```php
+     * $redis->hmset('test_collection', 'key1', 'val1', 'key2', 'val2')
+     * ```
+     *
+     * @param string $name name of the missing method to execute
+     * @param array $params method call arguments
+     * @return mixed
+     */
+    public function __call($name, $params)
+    {
+        $redisCommand = strtoupper(Inflector::camel2words($name, false));
+        if (in_array($redisCommand, $this->redisCommands)) {
+            return $this->executeCommand($redisCommand, $params);
+        } else {
+            return parent::__call($name, $params);
         }
     }
 

@@ -15,123 +15,6 @@ use rabbit\helper\StringHelper;
 class ActiveRecord extends BaseActiveRecord
 {
     /**
-     * Returns the database connection used by this AR class.
-     * By default, the "redis" application component is used as the database connection.
-     * You may override this method if you want to use a different database connection.
-     * @return Connection the database connection used by this AR class.
-     */
-    public static function getDb()
-    {
-        return getDI('redis');
-    }
-
-    /**
-     * @inheritdoc
-     * @return ActiveQuery the newly created [[ActiveQuery]] instance.
-     */
-    public static function find(): ActiveQuery
-    {
-        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()], false);
-    }
-
-    /**
-     * Returns the primary key name(s) for this AR class.
-     * This method should be overridden by child classes to define the primary key.
-     *
-     * Note that an array should be returned even when it is a single primary key.
-     *
-     * @return string[] the primary keys of this record.
-     */
-    public static function primaryKey(): array
-    {
-        return ['id'];
-    }
-
-    /**
-     * Returns the list of all attribute names of the model.
-     * This method must be overridden by child classes to define available attributes.
-     * @return array list of attribute names.
-     */
-    public function attributes(): array
-    {
-        throw new InvalidConfigException('The attributes() method of redis ActiveRecord has to be implemented by child classes.');
-    }
-
-    /**
-     * Declares prefix of the key that represents the keys that store this records in redis.
-     * By default this method returns the class name as the table name by calling [[Inflector::camel2id()]].
-     * For example, 'Customer' becomes 'customer', and 'OrderItem' becomes
-     * 'order_item'. You may override this method if you want different key naming.
-     * @return string the prefix to apply to all AR keys
-     */
-    public static function keyPrefix(): string
-    {
-        return Inflector::camel2id(StringHelper::basename(get_called_class()), '_');
-    }
-
-    /**
-     * @inheritdoc
-     */
-    public function insert($runValidation = true, $attributes = null)
-    {
-        if ($runValidation && !$this->validate($attributes)) {
-            return false;
-        }
-        $db = static::getDb();
-        $values = $this->getDirtyAttributes($attributes);
-        $pk = [];
-        foreach ($this->primaryKey() as $key) {
-            $pk[$key] = $values[$key] = $this->getAttribute($key);
-            if ($pk[$key] === null) {
-                // use auto increment if pk is null
-                $pk[$key] = $values[$key] = $db->executeCommand('INCR', [static::keyPrefix() . ':s:' . $key]);
-                $this->setAttribute($key, $values[$key]);
-            } elseif (is_numeric($pk[$key])) {
-                // if pk is numeric update auto increment value
-                $currentPk = $db->executeCommand('GET', [static::keyPrefix() . ':s:' . $key]);
-                if ($pk[$key] > $currentPk) {
-                    $db->executeCommand('SET', [static::keyPrefix() . ':s:' . $key, $pk[$key]]);
-                }
-            }
-        }
-        // save pk in a findall pool
-        $pk = static::buildKey($pk);
-        $db->executeCommand('RPUSH', [static::keyPrefix(), $pk]);
-
-        $key = static::keyPrefix() . ':a:' . $pk;
-        // save attributes
-        $setArgs = [$key];
-        foreach ($values as $attribute => $value) {
-            // only insert attributes that are not null
-            if ($value !== null) {
-                if (is_bool($value)) {
-                    $value = (int)$value;
-                }
-                if ($db instanceof Redis) {
-                    $setArgs[] = $attribute;
-                    $setArgs[] = $value;
-                } else {
-                    $setArgs[$attribute] = $value;
-                }
-            }
-        }
-
-        if (count($setArgs) > 1) {
-            if ($db instanceof Redis) {
-                $db->executeCommand('HMSET', $setArgs);
-            } else {
-                $hash = array_shift($setArgs);
-                $db->executeCommand('HMSET', [$hash, $setArgs]);
-            }
-        }
-
-        $changedAttributes = array_fill_keys(array_keys($values), null);
-        $this->setOldAttributes($values);
-
-        return true;
-    }
-
-    /**
      * Updates the whole table using the provided attribute values and conditions.
      * For example, to change the status to be 1 for all customers whose status is 2:
      *
@@ -229,6 +112,34 @@ class ActiveRecord extends BaseActiveRecord
         return $n;
     }
 
+    private static function fetchPks($condition)
+    {
+        $query = static::find();
+        $query->where($condition);
+        $records = $query->asArray()->all(); // TODO limit fetched columns to pk
+        $primaryKey = static::primaryKey();
+
+        $pks = [];
+        foreach ($records as $record) {
+            $pk = [];
+            foreach ($primaryKey as $key) {
+                $pk[$key] = $record[$key];
+            }
+            $pks[] = $pk;
+        }
+
+        return $pks;
+    }
+
+    /**
+     * @inheritdoc
+     * @return ActiveQuery the newly created [[ActiveQuery]] instance.
+     */
+    public static function find(): ActiveQuery
+    {
+        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()], false);
+    }
+
     /**
      * Updates the whole table using the provided counter changes and conditions.
      * For example, to increment all customers' age by 1,
@@ -301,23 +212,112 @@ class ActiveRecord extends BaseActiveRecord
         return end($result);
     }
 
-    private static function fetchPks($condition)
+    /**
+     * Returns the list of all attribute names of the model.
+     * This method must be overridden by child classes to define available attributes.
+     * @return array list of attribute names.
+     */
+    public function attributes(): array
     {
-        $query = static::find();
-        $query->where($condition);
-        $records = $query->asArray()->all(); // TODO limit fetched columns to pk
-        $primaryKey = static::primaryKey();
+        throw new InvalidConfigException('The attributes() method of redis ActiveRecord has to be implemented by child classes.');
+    }
 
-        $pks = [];
-        foreach ($records as $record) {
-            $pk = [];
-            foreach ($primaryKey as $key) {
-                $pk[$key] = $record[$key];
+    /**
+     * @inheritdoc
+     */
+    public function insert($runValidation = true, $attributes = null)
+    {
+        if ($runValidation && !$this->validate($attributes)) {
+            return false;
+        }
+        $db = static::getDb();
+        $values = $this->getDirtyAttributes($attributes);
+        $pk = [];
+        foreach ($this->primaryKey() as $key) {
+            $pk[$key] = $values[$key] = $this->getAttribute($key);
+            if ($pk[$key] === null) {
+                // use auto increment if pk is null
+                $pk[$key] = $values[$key] = $db->executeCommand('INCR', [static::keyPrefix() . ':s:' . $key]);
+                $this->setAttribute($key, $values[$key]);
+            } elseif (is_numeric($pk[$key])) {
+                // if pk is numeric update auto increment value
+                $currentPk = $db->executeCommand('GET', [static::keyPrefix() . ':s:' . $key]);
+                if ($pk[$key] > $currentPk) {
+                    $db->executeCommand('SET', [static::keyPrefix() . ':s:' . $key, $pk[$key]]);
+                }
             }
-            $pks[] = $pk;
+        }
+        // save pk in a findall pool
+        $pk = static::buildKey($pk);
+        $db->executeCommand('RPUSH', [static::keyPrefix(), $pk]);
+
+        $key = static::keyPrefix() . ':a:' . $pk;
+        // save attributes
+        $setArgs = [$key];
+        foreach ($values as $attribute => $value) {
+            // only insert attributes that are not null
+            if ($value !== null) {
+                if (is_bool($value)) {
+                    $value = (int)$value;
+                }
+                if ($db instanceof Redis) {
+                    $setArgs[] = $attribute;
+                    $setArgs[] = $value;
+                } else {
+                    $setArgs[$attribute] = $value;
+                }
+            }
         }
 
-        return $pks;
+        if (count($setArgs) > 1) {
+            if ($db instanceof Redis) {
+                $db->executeCommand('HMSET', $setArgs);
+            } else {
+                $hash = array_shift($setArgs);
+                $db->executeCommand('HMSET', [$hash, $setArgs]);
+            }
+        }
+
+        $changedAttributes = array_fill_keys(array_keys($values), null);
+        $this->setOldAttributes($values);
+
+        return true;
+    }
+
+    /**
+     * Returns the database connection used by this AR class.
+     * By default, the "redis" application component is used as the database connection.
+     * You may override this method if you want to use a different database connection.
+     * @return Connection the database connection used by this AR class.
+     */
+    public static function getDb()
+    {
+        return getDI('redis');
+    }
+
+    /**
+     * Returns the primary key name(s) for this AR class.
+     * This method should be overridden by child classes to define the primary key.
+     *
+     * Note that an array should be returned even when it is a single primary key.
+     *
+     * @return string[] the primary keys of this record.
+     */
+    public static function primaryKey(): array
+    {
+        return ['id'];
+    }
+
+    /**
+     * Declares prefix of the key that represents the keys that store this records in redis.
+     * By default this method returns the class name as the table name by calling [[Inflector::camel2id()]].
+     * For example, 'Customer' becomes 'customer', and 'OrderItem' becomes
+     * 'order_item'. You may override this method if you want different key naming.
+     * @return string the prefix to apply to all AR keys
+     */
+    public static function keyPrefix(): string
+    {
+        return Inflector::camel2id(StringHelper::basename(get_called_class()), '_');
     }
 
     /**
