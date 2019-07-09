@@ -876,7 +876,7 @@ class Connection extends AbstractConnection
      */
     private function parseResponse(string $command)
     {
-        if (($line = fgets($this->_socket)) === false) {
+        if (($line = \Co::fgets($this->_socket)) === false) {
             throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
         }
         $type = $line[0];
