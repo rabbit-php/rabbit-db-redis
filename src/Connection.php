@@ -717,7 +717,7 @@ class Connection extends AbstractConnection
     {
         if ($this->_socket !== false) {
             $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
-            App::debug('Closing DB connection: ' . $connection, 'redis');
+            App::warning('Closing DB connection: ' . $connection, 'redis');
             try {
                 $this->executeCommand('QUIT');
             } catch (SocketException $e) {
