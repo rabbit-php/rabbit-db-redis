@@ -792,11 +792,12 @@ class Connection extends AbstractConnection
      */
     public function open()
     {
+        $pool = PoolManager::getPool($this->poolKey);
         if ($this->_socket !== false) {
             return;
         }
-        $this->connectionTimeout = $this->dataTimeout = $this->pool->getTimeout();
-        $address = $this->pool->getConnectionAddress();
+        $this->connectionTimeout = $this->dataTimeout = $pool->getTimeout();
+        $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
 
         $this->hostname = $config['host'];
