@@ -2,7 +2,6 @@
 
 namespace rabbit\db\redis;
 
-
 use rabbit\App;
 use rabbit\db\Exception;
 use rabbit\exception\NotSupportedException;
@@ -815,8 +814,11 @@ class Connection extends AbstractConnection
         );
         if ($this->_socket) {
             if ($this->dataTimeout !== null) {
-                stream_set_timeout($this->_socket, $timeout = (int)$this->dataTimeout,
-                    (int)(($this->dataTimeout - $timeout) * 1000000));
+                stream_set_timeout(
+                    $this->_socket,
+                    $timeout = (int)$this->dataTimeout,
+                    (int)(($this->dataTimeout - $timeout) * 1000000)
+                );
             }
             if ($this->password !== null) {
                 $this->executeCommand('AUTH', [$this->password]);
@@ -840,8 +842,10 @@ class Connection extends AbstractConnection
     {
         $parseAry = parse_url($uri);
         if (!isset($parseAry['host']) || !isset($parseAry['port'])) {
-            $error = sprintf('Redis Connection format is incorrect uri=%s, eg:tcp://127.0.0.1:6379/1?password=password',
-                $uri);
+            $error = sprintf(
+                'Redis Connection format is incorrect uri=%s, eg:tcp://127.0.0.1:6379/1?password=password',
+                $uri
+            );
             throw new Exception($error);
         }
         isset($parseAry['path']) && $parseAry['db'] = str_replace('/', '', $parseAry['path']);
@@ -889,6 +893,7 @@ class Connection extends AbstractConnection
                 } else {
                     return $line;
                 }
+                // no break
             case '-': // Error reply
                 throw new Exception("Redis error: " . $line . "\nRedis command was: " . $command);
             case ':': // Integer reply

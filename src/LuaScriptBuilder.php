@@ -313,8 +313,11 @@ EOF;
         $modelClass = $query->modelClass;
         $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
 
-        return $this->build($query, "n=n+1 pks[n]=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")",
-            'pks');
+        return $this->build(
+            $query,
+            "n=n+1 pks[n]=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")",
+            'pks'
+        );
     }
 
     /**
@@ -354,8 +357,11 @@ EOF;
         $modelClass = $query->modelClass;
         $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
 
-        return $this->build($query,
-            "n=n+1 if v==nil then v=0 end v=v+redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")", 'v/n');
+        return $this->build(
+            $query,
+            "n=n+1 if v==nil then v=0 end v=v+redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")",
+            'v/n'
+        );
     }
 
     /**
@@ -370,8 +376,11 @@ EOF;
         $modelClass = $query->modelClass;
         $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
 
-        return $this->build($query,
-            "n=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ") if v==nil or n<v then v=n end", 'v');
+        return $this->build(
+            $query,
+            "n=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ") if v==nil or n<v then v=n end",
+            'v'
+        );
     }
 
     /**
@@ -386,8 +395,11 @@ EOF;
         $modelClass = $query->modelClass;
         $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
 
-        return $this->build($query,
-            "n=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ") if v==nil or n>v then v=n end", 'v');
+        return $this->build(
+            $query,
+            "n=redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ") if v==nil or n>v then v=n end",
+            'v'
+        );
     }
 
     /**

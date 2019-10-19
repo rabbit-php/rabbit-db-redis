@@ -8,7 +8,6 @@
 
 namespace rabbit\db\redis;
 
-
 use Psr\SimpleCache\CacheInterface;
 use rabbit\cache\AbstractCache;
 use rabbit\core\ObjectFactory;

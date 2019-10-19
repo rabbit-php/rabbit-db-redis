@@ -3,7 +3,6 @@
 
 namespace rabbit\db\redis;
 
-
 use rabbit\db\ConnectionInterface;
 
 /**
@@ -12,5 +11,4 @@ use rabbit\db\ConnectionInterface;
  */
 class Redis extends \rabbit\redis\Redis implements ConnectionInterface
 {
-
 }

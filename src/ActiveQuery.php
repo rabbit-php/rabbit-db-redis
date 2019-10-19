@@ -127,17 +127,19 @@ class ActiveQuery implements ActiveQueryInterface
 
         // find by primary key if possible. This is much faster than scanning all records
         if (is_array($this->where) && (
-                !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
+            !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
                 isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1])
-            )) {
+        )) {
             return $this->findByPk($db, $type, $columnName);
         }
 
         $method = 'build' . $type;
         $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
-        return $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand('EVAL',
-            [$script, []]);
+        return $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand(
+            'EVAL',
+            [$script, []]
+        );
     }
 
     /**
