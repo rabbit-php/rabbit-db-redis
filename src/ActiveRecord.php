@@ -33,6 +33,7 @@ class ActiveRecord extends BaseActiveRecord
             return 0;
         }
         $db = static::getDb();
+        $conn = $db->getConn();
         $n = 0;
         foreach (self::fetchPks($condition) as $pk) {
             $newPk = $pk;
@@ -63,52 +64,52 @@ class ActiveRecord extends BaseActiveRecord
             $newKey = static::keyPrefix() . ':a:' . $newPk;
             // rename index if pk changed
             if ($newPk != $pk) {
-                $db->executeCommand('MULTI');
+                $conn->executeCommand('MULTI');
                 if (count($setArgs) > 1) {
                     if ($db instanceof Redis) {
-                        $db->executeCommand('HMSET', $setArgs);
+                        $conn->executeCommand('HMSET', $setArgs);
                     } else {
                         $hash = array_shift($setArgs);
-                        $db->executeCommand('HMSET', [$hash, $setArgs]);
+                        $conn->executeCommand('HMSET', [$hash, $setArgs]);
                     }
                 }
                 if (count($delArgs) > 1) {
                     if ($db instanceof Redis) {
-                        $db->executeCommand('HDEL', $delArgs);
+                        $conn->executeCommand('HDEL', $delArgs);
                     } else {
                         $hash = array_shift($setArgs);
-                        $db->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
                     }
                 }
-                $db->executeCommand('LINSERT', [static::keyPrefix(), 'AFTER', $pk, $newPk]);
+                $conn->executeCommand('LINSERT', [static::keyPrefix(), 'AFTER', $pk, $newPk]);
                 if ($db instanceof Redis) {
-                    $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                    $conn->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
                 } else {
-                    $db->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+                    $conn->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
                 }
-                $db->executeCommand('RENAME', [$key, $newKey]);
-                $db->executeCommand('EXEC');
+                $conn->executeCommand('RENAME', [$key, $newKey]);
+                $conn->executeCommand('EXEC');
             } else {
                 if (count($setArgs) > 1) {
                     if ($db instanceof Redis) {
-                        $db->executeCommand('HMSET', $setArgs);
+                        $conn->executeCommand('HMSET', $setArgs);
                     } else {
                         $hash = array_shift($setArgs);
-                        $db->executeCommand('HMSET', [$hash, $setArgs]);
+                        $conn->executeCommand('HMSET', [$hash, $setArgs]);
                     }
                 }
                 if (count($delArgs) > 1) {
                     if ($db instanceof Redis) {
-                        $db->executeCommand('HDEL', $delArgs);
+                        $conn->executeCommand('HDEL', $delArgs);
                     } else {
                         $hash = array_shift($setArgs);
-                        $db->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
                     }
                 }
             }
             $n++;
         }
-
+        $conn->release(true);
         return $n;
     }
 
@@ -160,15 +161,16 @@ class ActiveRecord extends BaseActiveRecord
             return 0;
         }
         $db = static::getDb();
+        $conn = $db->getConn();
         $n = 0;
         foreach (self::fetchPks($condition) as $pk) {
             $key = static::keyPrefix() . ':a:' . static::buildKey($pk);
             foreach ($counters as $attribute => $value) {
-                $db->executeCommand('HINCRBY', [$key, $attribute, $value]);
+                $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
             }
             $n++;
         }
-
+        $conn->release(true);
         return $n;
     }
 
@@ -194,20 +196,22 @@ class ActiveRecord extends BaseActiveRecord
         }
 
         $db = static::getDb();
+        $conn = $db->getConn();
         $attributeKeys = [];
-        $db->executeCommand('MULTI');
+        $conn->executeCommand('MULTI');
         foreach ($pks as $pk) {
             $pk = static::buildKey($pk);
             if ($db instanceof Redis) {
-                $db->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                $conn->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
             } else {
-                $db->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+                $conn->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
             }
 
             $attributeKeys[] = static::keyPrefix() . ':a:' . $pk;
         }
-        $db->executeCommand('DEL', $attributeKeys);
-        $result = $db->executeCommand('EXEC');
+        $conn->executeCommand('DEL', $attributeKeys);
+        $result = $conn->executeCommand('EXEC');
+        $conn->release(true);
 
         return end($result);
     }
@@ -231,25 +235,26 @@ class ActiveRecord extends BaseActiveRecord
             return false;
         }
         $db = static::getDb();
+        $conn = $db->getConn();
         $values = $this->getDirtyAttributes($attributes);
         $pk = [];
         foreach ($this->primaryKey() as $key) {
             $pk[$key] = $values[$key] = $this->getAttribute($key);
             if ($pk[$key] === null) {
                 // use auto increment if pk is null
-                $pk[$key] = $values[$key] = $db->executeCommand('INCR', [static::keyPrefix() . ':s:' . $key]);
+                $pk[$key] = $values[$key] = $conn->executeCommand('INCR', [static::keyPrefix() . ':s:' . $key]);
                 $this->setAttribute($key, $values[$key]);
             } elseif (is_numeric($pk[$key])) {
                 // if pk is numeric update auto increment value
-                $currentPk = $db->executeCommand('GET', [static::keyPrefix() . ':s:' . $key]);
+                $currentPk = $conn->executeCommand('GET', [static::keyPrefix() . ':s:' . $key]);
                 if ($pk[$key] > $currentPk) {
-                    $db->executeCommand('SET', [static::keyPrefix() . ':s:' . $key, $pk[$key]]);
+                    $conn->executeCommand('SET', [static::keyPrefix() . ':s:' . $key, $pk[$key]]);
                 }
             }
         }
         // save pk in a findall pool
         $pk = static::buildKey($pk);
-        $db->executeCommand('RPUSH', [static::keyPrefix(), $pk]);
+        $conn->executeCommand('RPUSH', [static::keyPrefix(), $pk]);
 
         $key = static::keyPrefix() . ':a:' . $pk;
         // save attributes
@@ -271,13 +276,13 @@ class ActiveRecord extends BaseActiveRecord
 
         if (count($setArgs) > 1) {
             if ($db instanceof Redis) {
-                $db->executeCommand('HMSET', $setArgs);
+                $conn->executeCommand('HMSET', $setArgs);
             } else {
                 $hash = array_shift($setArgs);
-                $db->executeCommand('HMSET', [$hash, $setArgs]);
+                $conn->executeCommand('HMSET', [$hash, $setArgs]);
             }
         }
-
+        $conn->release(true);
         $changedAttributes = array_fill_keys(array_keys($values), null);
         $this->setOldAttributes($values);
 
