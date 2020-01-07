@@ -7,6 +7,8 @@ use rabbit\db\Exception;
 use rabbit\exception\NotSupportedException;
 use rabbit\helper\Inflector;
 use rabbit\pool\AbstractConnection;
+use rabbit\pool\PoolManager;
+use rabbit\redis\Redis;
 
 /**
  * The redis connection class is used to establish a connection to a [redis](http://redis.io/) server.
@@ -799,8 +801,8 @@ class Connection extends AbstractConnection
         $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
 
-        $this->hostname = $config['host'];
-        $this->port = (int)$config['port'];
+        [$this->hostname, $this->port] = Redis::getCurrent($config);
+
         $this->database = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
         $this->password = isset($config['password']) ? $config['password'] : null;
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
@@ -893,7 +895,7 @@ class Connection extends AbstractConnection
                 } else {
                     return $line;
                 }
-                // no break
+            // no break
             case '-': // Error reply
                 throw new Exception("Redis error: " . $line . "\nRedis command was: " . $command);
             case ':': // Integer reply
