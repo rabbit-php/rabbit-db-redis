@@ -5,8 +5,8 @@ namespace rabbit\db\redis;
 
 use rabbit\core\ObjectFactory;
 use rabbit\helper\ArrayHelper;
-use rabbit\redis\pool\RedisPool;
-use rabbit\redis\pool\RedisPoolConfig;
+use rabbit\db\redis\pool\RedisPool;
+use rabbit\db\redis\pool\RedisPoolConfig;
 
 /**
  * Class MakeConnection

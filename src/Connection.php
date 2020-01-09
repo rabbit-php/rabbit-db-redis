@@ -8,7 +8,6 @@ use rabbit\exception\NotSupportedException;
 use rabbit\helper\Inflector;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
-use rabbit\redis\Redis;
 
 /**
  * The redis connection class is used to establish a connection to a [redis](http://redis.io/) server.

@@ -1,12 +1,11 @@
 <?php
 
-namespace rabbit\redis;
+namespace rabbit\db\redis;
 
 use rabbit\contract\ResultInterface;
-use rabbit\db\redis\SentinelsManager;
 use rabbit\pool\ConnectionInterface;
 use rabbit\pool\PoolInterface;
-use rabbit\redis\pool\RedisPool;
+use rabbit\db\redis\pool\RedisPool;
 
 /**
  * Class SwooleRedis

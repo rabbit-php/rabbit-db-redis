@@ -4,9 +4,10 @@ declare(strict_types=1);
 namespace rabbit\db\redis;
 
 use rabbit\core\ObjectFactory;
+use rabbit\db\ConnectionInterface;
+use rabbit\db\redis\pool\RedisPool;
+use rabbit\db\redis\pool\RedisPoolConfig;
 use rabbit\helper\ArrayHelper;
-use rabbit\redis\pool\RedisPool;
-use rabbit\redis\pool\RedisPoolConfig;
 
 /**
  * Class Manager
@@ -48,9 +49,9 @@ class Manager
 
     /**
      * @param string $name
-     * @return \rabbit\redis\Redis|null
+     * @return ConnectionInterface|null
      */
-    public function getConnection(string $name = 'db'): ?\rabbit\redis\Redis
+    public function getConnection(string $name = 'db'): ?ConnectionInterface
     {
         /** @var RedisPool $pool */
         if (!isset($this->connections[$name])) {

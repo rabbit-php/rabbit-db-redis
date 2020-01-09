@@ -4,7 +4,6 @@
 namespace rabbit\db\redis;
 
 use rabbit\db\ConnectionInterface;
-use rabbit\redis\SwooleRedis;
 
 /**
  * Class Redis
