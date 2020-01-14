@@ -3,9 +3,9 @@
 namespace rabbit\db\redis;
 
 use rabbit\contract\ResultInterface;
+use rabbit\db\redis\pool\RedisPool;
 use rabbit\pool\ConnectionInterface;
 use rabbit\pool\PoolInterface;
-use rabbit\db\redis\pool\RedisPool;
 
 /**
  * Class SwooleRedis
@@ -94,12 +94,29 @@ class SwooleRedis
     public static function getCurrent(array $config): array
     {
         if (isset($config['sentinel']) && (int)$config['sentinel'] === 1) {
-            return getDI(SentinelsManager::class)->discoverMaster([
-                array_filter([
+            $sentinels = [];
+            if (filter_var($config['host'], FILTER_VALIDATE_IP)) {
+                $sentinels[] = array_filter([
                     'hostname' => $config['host'],
                     'port' => $config['port']
-                ])
-            ], isset($config['master']) ? $config['master'] : 'mymaster');
+                ]);
+            } else {
+                $res = \Co::getaddrinfo($config['host']);
+                if ($res) {
+                    foreach ($res as $ip) {
+                        $sentinels[] = array_filter([
+                            'hostname' => $ip,
+                            'port' => $config['port']
+                        ]);
+                    }
+                } else {
+                    $sentinels[] = array_filter([
+                        'hostname' => $config['host'],
+                        'port' => $config['port']
+                    ]);
+                }
+            }
+            return getDI(SentinelsManager::class)->discoverMaster($sentinels, isset($config['master']) ? $config['master'] : 'mymaster');
         }
         $host = $config['host'];
         $port = (int)$config['port'];
