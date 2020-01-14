@@ -22,6 +22,8 @@ class SentinelConnection
 
     public $unixSocket;
     protected $_socket;
+    /** @var int */
+    public $retry = 3;
 
 
     /**
@@ -46,6 +48,16 @@ class SentinelConnection
             $this->_socket = false;
             return false;
         }
+    }
+
+    /**
+     * @return bool
+     */
+    public function close(): bool
+    {
+        $res = fclose($this->_socket);
+        $this->_socket = null;
+        return $res;
     }
 
     /**
@@ -78,10 +90,16 @@ class SentinelConnection
             $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
         }
 
-        fwrite($this->_socket, $command);
-
-        $result = $this->parseResponse(implode(' ', $params));
-        return $result;
+        $retry = $this->retry;
+        while ($retry--) {
+            if (fwrite($this->_socket, $command) === false) {
+                $this->close();
+                $this->open();
+                continue;
+            }
+            return $this->parseResponse(implode(' ', $params));
+        }
+        throw new \Exception("Failed to read from socket.\nRedis command was: " . implode(' ', $params));
     }
 
     /**
