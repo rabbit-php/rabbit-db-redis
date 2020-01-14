@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace rabbit\db\redis;
 
-use Co\Channel;
 use rabbit\App;
 
 /**
@@ -14,11 +13,13 @@ class SentinelsManager
 {
     const LOG_KEY = 'redis';
     /** @var int */
-    protected $size = 0;
-    /** @var Channel */
-    protected $chan;
+    protected $size;
+    /** @var \SplQueue */
+    protected $queue;
     /** @var int */
     protected $busy = 0;
+    /** @var \SplQueue */
+    protected $wait;
 
     /**
      * SentinelsManager constructor.
@@ -26,7 +27,8 @@ class SentinelsManager
      */
     public function __construct()
     {
-        $this->chan = new Channel();
+        $this->queue = new \SplQueue();
+        $this->wait = new \SplQueue();
     }
 
     /**
@@ -46,8 +48,10 @@ class SentinelsManager
             }
 
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
-            if ($this->chan->length() + $this->busy === $this->size) {
-                $connection = $this->chan->pop();
+            if ($this->queue->count() + $this->busy >= $this->size) {
+                $this->wait->push(\Co::getCid());
+                \Co::yield();
+                $connection = $this->queue->shift();
             } else {
                 $connection = new SentinelConnection();
                 $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
@@ -60,12 +64,18 @@ class SentinelsManager
             }
             $this->busy++;
             $r = $connection->getMaster();
-            $this->chan->push($connection);
-            $this->busy--;
             if (isset($sentinel['hostname'])) {
                 $connectionName = "{$connection->hostname}:{$connection->port}";
             } else {
                 $connectionName = $connection->unixSocket;
+            }
+            if ($this->queue->count() + $this->busy <= $this->size) {
+                $this->queue->push($connection);
+            }
+            $this->busy--;
+            if ($this->wait->count() > 0) {
+                $cid = $this->wait->shift();
+                \Co::resume($cid);
             }
             if ($r) {
                 App::info("Sentinel @{$connectionName} gave master addr: {$r[0]}:{$r[1]}", self::LOG_KEY);
