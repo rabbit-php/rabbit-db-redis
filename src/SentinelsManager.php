@@ -12,6 +12,8 @@ use rabbit\App;
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
+    /** @var array */
+    protected $master = [];
 
     /**
      * @param array $sentinels
@@ -27,9 +29,12 @@ class SentinelsManager
                     'hostname' => $sentinel
                 ];
             }
-
+            $host = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
+            if (isset($this->master[$host])) {
+                return $this->master[$host];
+            }
             $connection = new SentinelConnection();
-            $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
+            $connection->hostname = $host;
             $connection->masterName = $masterName;
             if (isset($sentinel['port'])) {
                 $connection->port = $sentinel['port'];
@@ -45,6 +50,7 @@ class SentinelsManager
             }
             if ($r) {
                 App::info("Sentinel @{$connectionName} gave master addr: {$r[0]}:{$r[1]}", self::LOG_KEY);
+                $this->master[$host] = $r;
                 return $r;
             } else {
                 App::info("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
