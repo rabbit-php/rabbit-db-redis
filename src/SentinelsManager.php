@@ -12,8 +12,6 @@ use rabbit\App;
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
-    /** @var array */
-    private $sentinelList = [];
 
     /**
      * @param array $sentinels
@@ -29,20 +27,15 @@ class SentinelsManager
                     'hostname' => $sentinel
                 ];
             }
-            $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
-            if (isset($this->sentinelList[$key])) {
-                $connection = $this->sentinelList[$key];
-            } else {
-                $connection = new SentinelConnection();
-                $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
-                $connection->masterName = $masterName;
-                if (isset($sentinel['port'])) {
-                    $connection->port = $sentinel['port'];
-                }
-                $connection->connectionTimeout = isset($sentinel['connectionTimeout']) ? $sentinel['connectionTimeout'] : null;
-                $connection->unixSocket = isset($sentinel['unixSocket']) ? $sentinel['unixSocket'] : null;
-                $this->sentinelList[$key] = $connection;
+
+            $connection = new SentinelConnection();
+            $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
+            $connection->masterName = $masterName;
+            if (isset($sentinel['port'])) {
+                $connection->port = $sentinel['port'];
             }
+            $connection->connectionTimeout = isset($sentinel['connectionTimeout']) ? $sentinel['connectionTimeout'] : null;
+            $connection->unixSocket = isset($sentinel['unixSocket']) ? $sentinel['unixSocket'] : null;
 
             $r = $connection->getMaster();
             if (isset($sentinel['hostname'])) {
