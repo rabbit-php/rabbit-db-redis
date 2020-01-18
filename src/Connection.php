@@ -289,7 +289,7 @@ class Connection extends AbstractConnection
      * Defaults to 0 meaning no retries on failure.
      * @since 2.0.7
      */
-    private $retries = 0;
+    private $retries = 3;
     /**
      * @var array List of available redis commands.
      * @see http://redis.io/commands
@@ -774,11 +774,8 @@ class Connection extends AbstractConnection
                 } catch (SocketException $e) {
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
-                    $retries = $this->retries;
-                    $this->retries = 0;
                     $this->close();
                     $this->open();
-                    $this->retries = $retries;
                 }
             }
         }
