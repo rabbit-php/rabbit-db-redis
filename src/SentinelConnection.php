@@ -34,7 +34,7 @@ class SentinelConnection
      */
     protected function open(): bool
     {
-        if ($this->_socket->connected) {
+        if ($this->_socket !== null && $this->_socket->connected) {
             return true;
         }
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port);
