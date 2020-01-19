@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace rabbit\db\redis;
 
+use Co\Socket;
 use rabbit\App;
 
 /**
@@ -21,6 +22,7 @@ class SentinelConnection
     public $connectionTimeout;
 
     public $unixSocket;
+    /** @var Socket */
     protected $_socket;
     /** @var int */
     public $retry = 3;
@@ -37,17 +39,20 @@ class SentinelConnection
         }
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port);
         App::info('Opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
-        $this->_socket = @stream_socket_client($this->unixSocket ? 'unix://' . $this->unixSocket : 'tcp://' . $this->hostname . ':' . $this->port, $errorNumber, $errorDescription, $this->connectionTimeout ? (float)$this->connectionTimeout : (float)ini_get("default_socket_timeout"), STREAM_CLIENT_CONNECT);
-        if ($this->_socket) {
-            if ($this->connectionTimeout !== null) {
-                stream_set_timeout($this->_socket, $timeout = (int)$this->connectionTimeout, (int)(($this->connectionTimeout - $timeout) * 1000000));
+        $this->_socket = new Socket(AF_INET, SOCK_STREAM);
+        $retry = $this->retry;
+        while ($retry--) {
+            if ($this->_socket->connect($this->hostname, $this->port, $this->connectionTimeout ?? 3) === false) {
+                App::warning('Failed opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
+                continue;
             }
+            $this->_socket->setProtocol([
+                'open_eof_check' => true,
+                'package_eof' => PHP_EOL,
+            ]);
             return true;
-        } else {
-            App::warning('Failed opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
-            $this->_socket = false;
-            return false;
         }
+        return false;
     }
 
     /**
@@ -55,14 +60,14 @@ class SentinelConnection
      */
     public function close(): bool
     {
-        $res = fclose($this->_socket);
+        $res = (bool)$this->_socket->close();
         $this->_socket = null;
         return $res;
     }
 
     /**
-     * @return mixed|null
-     * @throws \Exception
+     * @return array|bool|false|string|null
+     * @throws SocketException
      */
     public function getMaster()
     {
@@ -80,7 +85,7 @@ class SentinelConnection
      * @param string $name
      * @param array $params
      * @return array|bool|false|string|null
-     * @throws \Exception
+     * @throws SocketException
      */
     public function executeCommand(string $name, array $params)
     {
@@ -92,25 +97,33 @@ class SentinelConnection
 
         $retry = $this->retry;
         while ($retry--) {
-            if (fwrite($this->_socket, $command) === false) {
+            try {
+                $written = $this->_socket->sendAll($command);
+                if ($written === false) {
+                    throw new SocketException("Failed to write to socket.\nRedis command was: " . $command);
+                }
+                if ($written !== ($len = mb_strlen($command, '8bit'))) {
+                    throw new SocketException("Failed to write to socket. $written of $len bytes written.\nRedis command was: " . $command);
+                }
+
+                return $this->parseResponse(implode(' ', $params));
+            } catch (\Throwable $exception) {
                 $this->close();
                 $this->open();
-                continue;
             }
-            return $this->parseResponse(implode(' ', $params));
         }
-        throw new \Exception("Failed to read from socket.\nRedis command was: " . implode(' ', $params));
+        throw new SocketException("Failed to read from socket.\nRedis command was: " . implode(' ', $params));
     }
 
     /**
      * @param string $command
      * @return array|bool|false|string|null
-     * @throws \Exception
+     * @throws SocketException
      */
     public function parseResponse(string $command)
     {
-        if (($line = fgets($this->_socket)) === false) {
-            throw new \Exception("Failed to read from socket.\nRedis command was: " . $command);
+        if (($line = $this->_socket->recvPacket()) === false) {
+            throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
         }
         $type = $line[0];
         $line = mb_substr($line, 1, -2, '8bit');
@@ -122,7 +135,7 @@ class SentinelConnection
                     return $line;
                 }
             case '-': // Error reply
-                throw new \Exception("Redis error: " . $line . "\nRedis command was: " . $command);
+                throw new SocketException("Redis error: " . $line . "\nRedis command was: " . $command);
             case ':': // Integer reply
                 // no cast to int as it is in the range of a signed 64 bit integer
                 return $line;
@@ -132,12 +145,10 @@ class SentinelConnection
                 }
                 $length = $line + 2;
                 $data = '';
-                while ($length > 0) {
-                    if (($block = fread($this->_socket, $length)) === false) {
-                        throw new \Exception("Failed to read from socket.\nRedis command was: " . $command);
+                if ($length > 0) {
+                    if (($data = $this->_socket->recvPacket()) === false) {
+                        throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
                     }
-                    $data .= $block;
-                    $length -= mb_strlen($block, '8bit');
                 }
 
                 return mb_substr($data, 0, -2, '8bit');
@@ -150,7 +161,7 @@ class SentinelConnection
 
                 return $data;
             default:
-                throw new \Exception('Received illegal data from redis: ' . $line . "\nRedis command was: " . $command);
+                throw new SocketException('Received illegal data from redis: ' . $line . "\nRedis command was: " . $command);
         }
     }
 }
