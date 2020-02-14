@@ -710,18 +710,20 @@ class Connection extends AbstractConnection
     }
 
     /**
-     * Closes the currently active DB connection.
-     * It does nothing if the connection is already closed.
+     * @param bool $quit
+     * @throws Exception
      */
-    public function close()
+    public function close(bool $quit = true)
     {
         if ($this->_socket !== false) {
             $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
             App::warning('Closing DB connection: ' . $connection, 'redis');
-            try {
-                $this->executeCommand('QUIT');
-            } catch (SocketException $e) {
-                // ignore errors when quitting a closed connection
+            if ($quit) {
+                try {
+                    $this->executeCommand('QUIT');
+                } catch (SocketException $e) {
+                    // ignore errors when quitting a closed connection
+                }
             }
             fclose($this->_socket);
             $this->_socket = false;
@@ -774,7 +776,7 @@ class Connection extends AbstractConnection
                 } catch (SocketException $e) {
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
-                    $this->close();
+                    $this->close(false);
                     $this->open();
                 }
             }
