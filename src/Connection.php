@@ -760,8 +760,9 @@ class Connection extends AbstractConnection
     public function executeCommand(string $name, array $params = [])
     {
         $this->open();
-
-        $params = array_merge(explode(' ', $name), $params);
+        $tmp = [];
+        $this->parseParams($params, $tmp);
+        $params = array_merge(explode(' ', $name), $tmp);
         $command = '*' . count($params) . "\r\n";
         foreach ($params as $arg) {
             $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
@@ -782,6 +783,23 @@ class Connection extends AbstractConnection
             }
         }
         return $this->sendCommandInternal($command, $params);
+    }
+
+    /**
+     * @param array $params
+     * @param array $tmp
+     */
+    private function parseParams(array $params, array &$tmp): void
+    {
+        foreach ($params as $index => $item) {
+            if (is_array($item)) {
+                $this->parseParams($item, $tmp);
+            } elseif (is_int($index)) {
+                $tmp[] = $item;
+            } else {
+                $tmp = array_merge($tmp, [$index, $item]);
+            }
+        }
     }
 
     /**
