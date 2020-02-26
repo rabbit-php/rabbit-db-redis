@@ -2,10 +2,12 @@
 
 namespace rabbit\db\redis;
 
+use rabbit\App;
 use rabbit\core\Exception;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
 use rabbit\redis\pool\RedisPoolConfig;
+use Swoole\Coroutine\System;
 
 /**
  * Class SwooleConnection
@@ -103,17 +105,22 @@ class SwooleConnection extends AbstractConnection
         $poolConfig = PoolManager::getPool($this->poolKey)->getPoolConfig();
         $serialize = $poolConfig->getSerialize();
         $redis = new \Swoole\Coroutine\Redis(['timeout' => $timeout]);
-        $result = $redis->connect($host, $port, $serialize);
-        if ($result === false) {
-            $error = sprintf('Redis connection failure host=%s port=%d', $host, $port);
-            throw new Exception($error);
-        }
-        if ($password) {
-            $redis->auth($password);
-        }
-        $redis->select($db);
+        $retry = $this->retries;
+        while ($retry-- > 0) {
+            $result = $redis->connect($host, $port, $serialize);
+            if ($result !== false) {
+                if ($password) {
+                    $redis->auth($password);
+                }
+                $redis->select($db);
 
-        return $redis;
+                return $redis;
+            }
+            App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port));
+            System::sleep($this->retryDelay);
+        }
+        $error = sprintf('Redis connection failure host=%s port=%d', $host, $port);
+        throw new Exception($error);
     }
 
     /**

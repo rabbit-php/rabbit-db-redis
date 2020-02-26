@@ -8,6 +8,7 @@ use rabbit\exception\NotSupportedException;
 use rabbit\helper\Inflector;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
+use Swoole\Coroutine\System;
 
 /**
  * The redis connection class is used to establish a connection to a [redis](http://redis.io/) server.
@@ -283,13 +284,6 @@ class Connection extends AbstractConnection
      * @since 2.0.5
      */
     private $socketClientFlags = STREAM_CLIENT_CONNECT;
-    /**
-     * @var integer The number of times a command execution should be retried when a connection failure occurs.
-     * This is used in [[executeCommand()]] when a [[SocketException]] is thrown.
-     * Defaults to 0 meaning no retries on failure.
-     * @since 2.0.7
-     */
-    private $retries = 3;
     /**
      * @var array List of available redis commands.
      * @see http://redis.io/commands
@@ -778,6 +772,8 @@ class Connection extends AbstractConnection
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
                     $this->close(false);
+                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port));
+                    System::sleep($this->retryDelay);
                     $this->open();
                 }
             }
