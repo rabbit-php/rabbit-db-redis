@@ -3,6 +3,7 @@
 namespace rabbit\db\redis;
 
 use rabbit\contract\ResultInterface;
+use rabbit\db\Exception;
 use rabbit\db\redis\pool\RedisPool;
 use rabbit\pool\ConnectionInterface;
 use rabbit\pool\PoolInterface;
@@ -121,5 +122,14 @@ class SwooleRedis
         $host = $config['host'];
         $port = (int)$config['port'];
         return [$host, $port];
+    }
+
+    /**
+     * @param bool $release
+     * @throws Exception
+     */
+    public function release($release = false): void
+    {
+        throw new Exception("This driver not need release");
     }
 }
