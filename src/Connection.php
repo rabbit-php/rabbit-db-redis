@@ -771,10 +771,13 @@ class Connection extends AbstractConnection
                 } catch (SocketException $e) {
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
+                    $retries = $this->retries;
+                    $this->retries = 0;
                     $this->close(false);
                     App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port));
                     System::sleep($this->retryDelay);
                     $this->open();
+                    $this->retries = $retries;
                 }
             }
         }
