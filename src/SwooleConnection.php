@@ -107,7 +107,7 @@ class SwooleConnection extends AbstractConnection
 
                 return $redis;
             }
-            App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port));
+            App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port, $this->retryDelay));
             System::sleep($this->retryDelay);
         }
         $error = sprintf('Redis connection failure host=%s port=%d', $host, $port);
