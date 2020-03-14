@@ -33,15 +33,6 @@ class SwooleConnection extends AbstractConnection
      */
     public function createConnection(): void
     {
-        $this->connection = $this->initRedis();
-    }
-
-    /**
-     * @return \Swoole\Coroutine\Redis
-     * @throws Exception
-     */
-    protected function initRedis(): \Swoole\Coroutine\Redis
-    {
         $pool = PoolManager::getPool($this->poolKey);
         $timeout = $pool->getTimeout();
         $address = $pool->getConnectionAddress();
@@ -56,7 +47,7 @@ class SwooleConnection extends AbstractConnection
         if ($options) {
             $redis->setOptions($options);
         }
-        return $redis;
+        $this->connection = $redis;
     }
 
     /**

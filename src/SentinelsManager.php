@@ -84,6 +84,6 @@ class SentinelsManager
                 App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
             }
         }
-        throw new \Exception("Master could not be discovered");
+        throw new \Exception("$key Master could not be discovered");
     }
 }
