@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace rabbit\db\redis;
 
 use rabbit\App;
+use rabbit\core\Exception;
 
 /**
  * Class SentinelsManager
@@ -17,7 +18,7 @@ class SentinelsManager
     /** @var \SplQueue */
     protected $queue;
     /** @var int */
-    protected $busy = 0;
+    protected $current = 0;
     /** @var \SplQueue */
     protected $wait;
 
@@ -46,33 +47,42 @@ class SentinelsManager
                     'hostname' => $sentinel
                 ];
             }
-
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
-            if ($this->queue->count() + $this->busy > $this->size) {
+
+            if (!$this->queue->isEmpty()) {
+                $connection = $this->queue->shift();
+            } elseif ($this->current >= $this->size) {
                 $this->wait->push(\Co::getCid());
                 \Co::yield();
                 $connection = $this->queue->shift();
             } else {
-                $connection = new SentinelConnection();
-                $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
-                $connection->masterName = $masterName;
-                if (isset($sentinel['port'])) {
-                    $connection->port = $sentinel['port'];
+                try {
+                    $this->current++;
+                    $connection = new SentinelConnection();
+                    $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
+                    $connection->masterName = $masterName;
+                    if (isset($sentinel['port'])) {
+                        $connection->port = $sentinel['port'];
+                    }
+                    $connection->connectionTimeout = isset($sentinel['connectionTimeout']) ? $sentinel['connectionTimeout'] : null;
+                    $connection->unixSocket = isset($sentinel['unixSocket']) ? $sentinel['unixSocket'] : null;
+                } catch (\Throwable $exception) {
+                    $this->current--;
+                    throw new Exception("can not open sentinel, $key");
                 }
-                $connection->connectionTimeout = isset($sentinel['connectionTimeout']) ? $sentinel['connectionTimeout'] : null;
-                $connection->unixSocket = isset($sentinel['unixSocket']) ? $sentinel['unixSocket'] : null;
+
             }
-            $this->busy++;
             $r = $connection->getMaster();
             if (isset($sentinel['hostname'])) {
                 $connectionName = "{$connection->hostname}:{$connection->port}";
             } else {
                 $connectionName = $connection->unixSocket;
             }
-            if ($this->queue->count() + $this->busy <= $this->size) {
+            if ($this->queue->count() < $this->size) {
                 $this->queue->push($connection);
+            } else {
+                $this->current--;
             }
-            $this->busy--;
             if ($this->wait->count() > 0) {
                 $cid = $this->wait->shift();
                 \Co::resume($cid);
