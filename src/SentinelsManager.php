@@ -48,7 +48,7 @@ class SentinelsManager
             }
 
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
-            if ($this->queue->count() + $this->busy >= $this->size) {
+            if ($this->queue->count() + $this->busy > $this->size) {
                 $this->wait->push(\Co::getCid());
                 \Co::yield();
                 $connection = $this->queue->shift();
