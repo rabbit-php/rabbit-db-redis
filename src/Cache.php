@@ -161,7 +161,6 @@ class Cache extends AbstractCache implements CacheInterface
      */
     public function has($key)
     {
-        $value = $this->getValue($this->buildKey($key));
-        return $value !== false;
+        return (bool)$this->client->executeCommand('EXISTS', $this->buildKey($key));;
     }
 }
