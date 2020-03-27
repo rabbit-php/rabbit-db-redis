@@ -56,7 +56,7 @@ class Cache extends AbstractCache implements CacheInterface
     public function set($key, $value, $ttl = null)
     {
         $key = $this->buildKey($key);
-        if ($ttl === 0) {
+        if ($ttl === null) {
             return (bool)$this->client->executeCommand('SET', [$key, $value]);
         } else {
             $ttl = (int)($ttl * 1000);
