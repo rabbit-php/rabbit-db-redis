@@ -82,6 +82,22 @@ class SentinelConnection
     }
 
     /**
+     * @return array|bool|false|string|null
+     * @throws SocketException
+     */
+    public function getSlaves()
+    {
+        if ($this->open()) {
+            return $this->executeCommand('sentinel', [
+                'slaves',
+                $this->masterName
+            ], $this->_socket);
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * @param string $name
      * @param array $params
      * @return array|bool|false|string|null
