@@ -5,6 +5,7 @@ namespace rabbit\db\redis;
 use rabbit\App;
 use rabbit\db\Exception;
 use rabbit\exception\NotSupportedException;
+use rabbit\helper\ArrayHelper;
 use rabbit\helper\Inflector;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
@@ -422,6 +423,7 @@ class Connection extends AbstractConnection
         if ($this->_socket === false) {
             $this->makeConn($config, '_socket');
         }
+        $this->separate = ArrayHelper::remove($config, 'separate', false);
         if ($this->separate && $this->_socketSlave === false) {
             $this->makeConn($config, '_socketSlave');
         }

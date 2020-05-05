@@ -74,7 +74,17 @@ class SentinelsManager
 
             }
             $method = 'get' . ucfirst($type);
-            $r = $connection->$method();
+            $res = $connection->$method();
+            $r = [];
+            if (!is_array($res[0])) {
+                $res = [$res];
+            }
+            foreach ($res as $index => $item) {
+                for ($i = 0; $i < count($item); $i += 2) {
+                    $r[$index][$item[$i]] = $item[$i + 1];
+                }
+            }
+            $r = $r[array_rand($r)];
             if (isset($sentinel['hostname'])) {
                 $connectionName = "{$connection->hostname}:{$connection->port}";
             } else {
@@ -90,8 +100,8 @@ class SentinelsManager
                 \Co::resume($cid);
             }
             if ($r) {
-                App::info("Sentinel @{$connectionName} gave master addr: {$r[0]}:{$r[1]}", self::LOG_KEY);
-                return $r;
+                App::info("Sentinel @{$connectionName} gave master addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
+                return [$r['ip'], $r['port']];
             } else {
                 App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
             }
