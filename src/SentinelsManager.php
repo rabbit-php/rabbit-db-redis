@@ -100,7 +100,7 @@ class SentinelsManager
                 \Co::resume($cid);
             }
             if ($r) {
-                App::info("Sentinel @{$connectionName} gave master addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
+                App::info("Sentinel @{$connectionName} gave $type addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
                 return [$r['ip'], $r['port']];
             } else {
                 App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
