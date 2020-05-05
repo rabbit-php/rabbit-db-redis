@@ -187,11 +187,7 @@ class SwooleConnection extends AbstractConnection
      */
     public function __call($method, $arguments)
     {
-        if (in_array($method, SwooleRedis::READ_COMMAND)) {
-            $this->currConn = SwooleRedis::CONN_SLAVE;
-        } else {
-            $this->currConn = SwooleRedis::CONN_MASTER;
-        }
+        $this->separate();
         return $this->{$this->currConn}->$method(...$arguments);
     }
 
@@ -202,11 +198,16 @@ class SwooleConnection extends AbstractConnection
      */
     public function executeCommand(string $name, array $params = [])
     {
-        if (in_array($method, SwooleRedis::READ_COMMAND)) {
+        $this->separate();
+        return $this->{$this->currConn}->$name(...$params);
+    }
+
+    private function separate(): void
+    {
+        if ($this->slave && in_array($method, SwooleRedis::READ_COMMAND)) {
             $this->currConn = SwooleRedis::CONN_SLAVE;
         } else {
             $this->currConn = SwooleRedis::CONN_MASTER;
         }
-        return $this->{$this->currConn}->$name(...$params);
     }
 }

@@ -363,6 +363,11 @@ class Connection extends AbstractConnection
     {
         $this->open();
         $tmp = [];
+        if ($this->_socketSlave && in_array($name, Redis::READ_COMMAND)) {
+            $type = '_socketSlave';
+        } else {
+            $type = '_socket';
+        }
         $this->parseParams($params, $tmp);
         $params = array_merge(explode(' ', $name), $tmp);
         $command = '*' . count($params) . "\r\n";
@@ -375,7 +380,7 @@ class Connection extends AbstractConnection
             $tries = $this->retries;
             while ($tries-- > 0) {
                 try {
-                    return $this->sendCommandInternal($command, $params);
+                    return $this->sendCommandInternal($command, $params, $type);
                 } catch (SocketException $e) {
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
@@ -389,7 +394,7 @@ class Connection extends AbstractConnection
                 }
             }
         }
-        return $this->sendCommandInternal($command, $params);
+        return $this->sendCommandInternal($command, $params, $type);
     }
 
     /**
@@ -496,16 +501,15 @@ class Connection extends AbstractConnection
     }
 
     /**
-     * Sends RAW command string to the server.
-     * @throws SocketException on connection error.
+     * @param string $command
+     * @param array $params
+     * @param string $type
+     * @return array|bool|string|null
+     * @throws Exception
+     * @throws SocketException
      */
-    private function sendCommandInternal(string $command, array $params)
+    private function sendCommandInternal(string $command, array $params, string $type)
     {
-        if (in_array($command, Redis::READ_COMMAND)) {
-            $type = '_socketSlave';
-        } else {
-            $type = '_socket';
-        }
         $written = @fwrite($this->$type, $command);
         if ($written === false) {
             throw new SocketException("Failed to write to socket.\nRedis command was: " . $command);
@@ -587,9 +591,8 @@ class Connection extends AbstractConnection
         $redisCommand = strtoupper(Inflector::camel2words($name, false));
         if (in_array($redisCommand, Redis::REDIS_COMMAND)) {
             return $this->executeCommand($redisCommand, $params);
-        } else {
-            return parent::__call($name, $params);
         }
+        throw new NotSupportedException("Redis not support cmd $name");
     }
 
     public function createConnection(): void
