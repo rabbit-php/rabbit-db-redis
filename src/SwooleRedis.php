@@ -14,6 +14,8 @@ use rabbit\pool\PoolInterface;
  */
 class SwooleRedis
 {
+    const CONN_MASTER = 'master';
+    const CONN_SLAVE = 'slave';
     /**
      * @var PoolInterface
      */

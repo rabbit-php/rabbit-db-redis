@@ -382,7 +382,7 @@ class Connection extends AbstractConnection
                     $retries = $this->retries;
                     $this->retries = 0;
                     $this->close(false);
-                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $host, $port));
+                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port));
                     System::sleep($this->retryDelay);
                     $this->open();
                     $this->retries = $retries;
@@ -523,9 +523,9 @@ class Connection extends AbstractConnection
      * @throws Exception
      * @throws SocketException
      */
-    private function parseResponse(string $command, string $type)
+    private function parseResponse(string $command, string $socket)
     {
-        if (($line = @fgets($this->$type)) === false) {
+        if (($line = @fgets($this->$socket)) === false) {
             throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
         }
         $type = $line[0];
@@ -550,7 +550,7 @@ class Connection extends AbstractConnection
                 $length = (int)$line + 2;
                 $data = '';
                 while ($length > 0) {
-                    if (($block = fread($this->$type, $length)) === false) {
+                    if (($block = fread($this->$socket, $length)) === false) {
                         throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
                     }
                     $data .= $block;
@@ -562,7 +562,7 @@ class Connection extends AbstractConnection
                 $count = (int)$line;
                 $data = [];
                 for ($i = 0; $i < $count; $i++) {
-                    $data[] = $this->parseResponse($command, $type);
+                    $data[] = $this->parseResponse($command, $socket);
                 }
 
                 return $data;

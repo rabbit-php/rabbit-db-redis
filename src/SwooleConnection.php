@@ -4,6 +4,7 @@ namespace rabbit\db\redis;
 
 use rabbit\App;
 use rabbit\core\Exception;
+use rabbit\helper\ArrayHelper;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
 use rabbit\redis\pool\RedisPoolConfig;
@@ -18,7 +19,13 @@ class SwooleConnection extends AbstractConnection
     /**
      * @var \Swoole\Coroutine\Redis
      */
-    private $connection;
+    private $master;
+    /**
+     * @var \Swoole\Coroutine\Redis
+     */
+    private $slave;
+    /** @var string */
+    private $currConn = SwooleRedis::CONN_MASTER;
 
     /**
      *
@@ -38,8 +45,23 @@ class SwooleConnection extends AbstractConnection
         $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
         $options = $pool->getPoolConfig()->getOptions();
+        if ($this->currConn === SwooleRedis::CONN_MASTER) {
+            $this->makeConn($config, $options, SwooleRedis::CONN_MASTER);
+        }
+        if (ArrayHelper::remove($config, 'separate', false) || $this->currConn === SwooleRedis::CONN_SLAVE) {
+            $this->makeConn($config, SwooleRedis::CONN_SLAVE);
+        }
+    }
 
-        [$host, $port] = Redis::getCurrent($config, 'master');
+    /**
+     * @param array $config
+     * @param array $options
+     * @param string $type
+     * @throws Exception
+     */
+    private function makeConn(array $config, array $options, string $type): void
+    {
+        [$host, $port] = Redis::getCurrent($config, $type);
 
         $db = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
         $password = isset($config['password']) ? $config['password'] : null;
@@ -47,7 +69,7 @@ class SwooleConnection extends AbstractConnection
         if ($options) {
             $redis->setOptions($options);
         }
-        $this->connection = $redis;
+        $this->$type = $redis;
     }
 
     /**
@@ -120,15 +142,20 @@ class SwooleConnection extends AbstractConnection
     public function check(): bool
     {
         try {
-            if (false === $this->connection->ping()) {
-                throw new \RuntimeException('Connection lost');
+            if (false === $this->master->ping()) {
+                $this->currConn = SwooleRedis::CONN_MASTER;
+                App::warning('Master Connection lost');
+                return false;
             }
-            $connected = true;
+            if ($this->slave && false === $this->slave->ping()) {
+                $this->currConn = SwooleRedis::CONN_SLAVE;
+                App::warning('Slave Connection lost');
+                return false;
+            }
+            return true;
         } catch (\Throwable $throwable) {
-            $connected = false;
+            return false;
         }
-
-        return $connected;
     }
 
     /**
@@ -137,8 +164,8 @@ class SwooleConnection extends AbstractConnection
      */
     public function receive(float $timeout = -1)
     {
-        $result = $this->connection->recv($timeout);
-        $this->connection->setDefer(false);
+        $result = $this->{$this->currConn}->recv($timeout);
+        $this->{$this->currConn}->setDefer(false);
         $this->recv = true;
 
         return $result;
@@ -150,7 +177,7 @@ class SwooleConnection extends AbstractConnection
     public function setDefer($defer = true): bool
     {
         $this->recv = false;
-        return $this->connection->setDefer($defer);
+        return $this->{$this->currConn}->setDefer($defer);
     }
 
     /**
@@ -160,7 +187,12 @@ class SwooleConnection extends AbstractConnection
      */
     public function __call($method, $arguments)
     {
-        return $this->connection->$method(...$arguments);
+        if (in_array($method, SwooleRedis::READ_COMMAND)) {
+            $this->currConn = SwooleRedis::CONN_SLAVE;
+        } else {
+            $this->currConn = SwooleRedis::CONN_MASTER;
+        }
+        return $this->{$this->currConn}->$method(...$arguments);
     }
 
     /**
@@ -170,6 +202,11 @@ class SwooleConnection extends AbstractConnection
      */
     public function executeCommand(string $name, array $params = [])
     {
-        return $this->connection->$name(...$params);
+        if (in_array($method, SwooleRedis::READ_COMMAND)) {
+            $this->currConn = SwooleRedis::CONN_SLAVE;
+        } else {
+            $this->currConn = SwooleRedis::CONN_MASTER;
+        }
+        return $this->{$this->currConn}->$name(...$params);
     }
 }
