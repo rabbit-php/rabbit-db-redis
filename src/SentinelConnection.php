@@ -73,7 +73,7 @@ class SentinelConnection
     {
         if ($this->open()) {
             return $this->executeCommand('sentinel', [
-                'get-master-addr-by-name',
+                'master',
                 $this->masterName
             ], $this->_socket);
         } else {
@@ -85,7 +85,7 @@ class SentinelConnection
      * @return array|bool|false|string|null
      * @throws SocketException
      */
-    public function getSlaves()
+    public function getSlave()
     {
         if ($this->open()) {
             return $this->executeCommand('sentinel', [

@@ -34,11 +34,12 @@ class SentinelsManager
 
     /**
      * @param array $sentinels
+     * @param string $type
      * @param string $masterName
-     * @return array|false
-     * @throws \Exception
+     * @return mixed
+     * @throws Exception
      */
-    public function discoverMaster(array $sentinels, string $masterName = 'mymaster')
+    public function discover(array $sentinels, string $type, string $masterName = 'mymaster')
     {
         $this->size = count($sentinels);
         foreach ($sentinels as $sentinel) {
@@ -72,7 +73,8 @@ class SentinelsManager
                 }
 
             }
-            $r = $connection->getMaster();
+            $method = 'get' . ucfirst($type);
+            $r = $connection->$method();
             if (isset($sentinel['hostname'])) {
                 $connectionName = "{$connection->hostname}:{$connection->port}";
             } else {

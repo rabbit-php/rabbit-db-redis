@@ -39,7 +39,7 @@ class SwooleConnection extends AbstractConnection
         $config = $this->parseUri($address);
         $options = $pool->getPoolConfig()->getOptions();
 
-        [$host, $port] = Redis::getCurrent($config);
+        [$host, $port] = Redis::getCurrent($config, 'master');
 
         $db = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
         $password = isset($config['password']) ? $config['password'] : null;
