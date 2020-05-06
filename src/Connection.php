@@ -296,6 +296,8 @@ class Connection extends AbstractConnection
     private $_socketSlave = false;
     /** @var bool */
     private $separate = false;
+    /** @var bool */
+    private $cluster = false;
 
     /**
      * Closes the connection when this component is being serialized.
@@ -421,14 +423,15 @@ class Connection extends AbstractConnection
      */
     public function open()
     {
+        if ($this->_socket !== false) {
+            return;
+        }
         $pool = PoolManager::getPool($this->poolKey);
         $this->connectionTimeout = $this->dataTimeout = $pool->getTimeout();
         $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
-        if ($this->_socket === false) {
-            $this->makeConn($config, '_socket');
-        }
         $this->separate = ArrayHelper::remove($config, 'separate', false);
+        $this->makeConn($config, '_socket');
         if ($this->separate && $this->_socketSlave === false) {
             $this->makeConn($config, '_socketSlave');
         }
