@@ -22,7 +22,9 @@ class LuaScriptBuilder
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build($query, "n=n+1 pks[n]=redis.call('HGETALL',$key .. pk)", 'pks');
     }
@@ -63,7 +65,9 @@ class LuaScriptBuilder
 
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix());
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey);
         $loadColumnValues = '';
         foreach ($columns as $column => $alias) {
             $loadColumnValues .= "local $alias=redis.call('HGET',$key .. ':a:' .. pk, " . $this->quoteValue($column) . ")\n";
@@ -251,7 +255,8 @@ EOF;
         array $inColumns,
         array $values,
         array &$columns
-    ): string {
+    ): string
+    {
         $vss = [];
         foreach ($values as $value) {
             $vs = [];
@@ -295,7 +300,9 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build($query, "do return redis.call('HGETALL',$key .. pk) end", 'pks');
     }
@@ -311,7 +318,9 @@ EOF;
         // TODO add support for indexBy
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build(
             $query,
@@ -340,7 +349,9 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build($query, "n=n+redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")", 'n');
     }
@@ -355,7 +366,9 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build(
             $query,
@@ -374,7 +387,9 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build(
             $query,
@@ -393,7 +408,9 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $key = $this->quoteValue($modelClass::keyPrefix() . ':a:');
+        $db = $modelClass::getDb();
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $key = $this->quoteValue($pkey . ':a:');
 
         return $this->build(
             $query,

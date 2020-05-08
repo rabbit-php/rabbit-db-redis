@@ -231,6 +231,8 @@ use Swoole\Coroutine\System;
  */
 class Connection extends AbstractConnection
 {
+    use ClusterTrait;
+
     /**
      * @var string the hostname or ip address to use for connecting to the redis server. Defaults to 'localhost'.
      * If [[unixSocket]] is specified, hostname and [[port]] will be ignored.
@@ -296,8 +298,6 @@ class Connection extends AbstractConnection
     private $_socketSlave = false;
     /** @var bool */
     private $separate = false;
-    /** @var bool */
-    private $cluster = false;
 
     /**
      * Closes the connection when this component is being serialized.
@@ -364,6 +364,7 @@ class Connection extends AbstractConnection
     public function executeCommand(string $name, array $params = [])
     {
         $this->open();
+        $name = strtoupper($name);
         $tmp = [];
         if ($this->_socketSlave && in_array($name, Redis::READ_COMMAND)) {
             $type = '_socketSlave';
@@ -382,7 +383,11 @@ class Connection extends AbstractConnection
             $tries = $this->retries;
             while ($tries-- > 0) {
                 try {
-                    return $this->sendCommandInternal($command, $params, $type);
+                    $data = $this->sendCommandInternal($command, $params, $type);
+                    if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
+                        return $this->parseData($data);
+                    }
+                    return $data;
                 } catch (SocketException $e) {
                     App::error((string)$e, 'redis');
                     // backup retries, fail on commands that fail inside here
@@ -396,7 +401,25 @@ class Connection extends AbstractConnection
                 }
             }
         }
-        return $this->sendCommandInternal($command, $params, $type);
+        $data = $this->sendCommandInternal($command, $params, $type);
+        if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
+            return $this->parseData($data);
+        }
+        return $data;
+    }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    private function parseData(array $data)
+    {
+        $row = [];
+        $c = count($data);
+        for ($i = 0; $i < $c;) {
+            $row[$data[$i++]] = $data[$i++];
+        }
+        return $row;
     }
 
     /**

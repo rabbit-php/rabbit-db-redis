@@ -42,20 +42,7 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         // TODO add support for orderBy
-        $data = $this->executeScript($db, 'All');
-        if (empty($data)) {
-            return [];
-        }
-        $rows = [];
-        foreach ($data as $dataRow) {
-            $row = [];
-            $c = count($dataRow);
-            for ($i = 0; $i < $c;) {
-                $row[$dataRow[$i++]] = $dataRow[$i++];
-            }
-
-            $rows[] = $row;
-        }
+        $rows = $this->executeScript($db, 'All');
         if (empty($rows)) {
             return [];
         }
@@ -127,19 +114,108 @@ class ActiveQuery implements ActiveQueryInterface
 
         // find by primary key if possible. This is much faster than scanning all records
         if (is_array($this->where) && (
-            !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
+                !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
                 isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1])
-        )) {
+            )) {
             return $this->findByPk($db, $type, $columnName);
         }
 
         $method = 'build' . $type;
         $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
-        return $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand(
+        $data = $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand(
             'EVAL',
             [$script, []]
         );
+        if (is_array($data)) {
+            switch ($type) {
+                case 'All':
+                    $rows = [];
+                    foreach ($data as $item) {
+                        $row = [];
+                        $c = count($item);
+                        for ($i = 0; $i < $c;) {
+                            $row[$item[$i++]] = $item[$i++];
+                        }
+                        $rows[] = $row;
+                    }
+                    return $rows;
+                case 'One':
+                    $row = [];
+                    $c = count($data);
+                    for ($i = 0; $i < $c;) {
+                        $row[$data[$i++]] = $data[$i++];
+                    }
+                    return $row;
+                case 'Count':
+                    return count($data);
+                case 'Column':
+                    $column = [];
+                    foreach ($data as $dataRow) {
+                        $row = [];
+                        $c = count($dataRow);
+                        for ($i = 0; $i < $c;) {
+                            $row[$dataRow[$i++]] = $dataRow[$i++];
+                        }
+                        $column[] = $row[$columnName];
+                    }
+                    return $column;
+                case 'Sum':
+                    $sum = 0;
+                    foreach ($data as $dataRow) {
+                        $c = count($dataRow);
+                        for ($i = 0; $i < $c;) {
+                            if ($dataRow[$i++] == $columnName) {
+                                $sum += $dataRow[$i];
+                                break;
+                            }
+                        }
+                    }
+                    return $sum;
+                case 'Average':
+                    $sum = 0;
+                    $count = 0;
+                    foreach ($data as $dataRow) {
+                        $count++;
+                        $c = count($dataRow);
+                        for ($i = 0; $i < $c;) {
+                            if ($dataRow[$i++] == $columnName) {
+                                $sum += $dataRow[$i];
+                                break;
+                            }
+                        }
+                    }
+
+                    return $sum / $count;
+                case 'Min':
+                    $min = null;
+                    foreach ($data as $dataRow) {
+                        $c = count($dataRow);
+                        for ($i = 0; $i < $c;) {
+                            if ($dataRow[$i++] == $columnName && ($min == null || $dataRow[$i] < $min)) {
+                                $min = $dataRow[$i];
+                                break;
+                            }
+                        }
+                    }
+
+                    return $min;
+                case 'Max':
+                    $max = null;
+                    foreach ($data as $dataRow) {
+                        $c = count($dataRow);
+                        for ($i = 0; $i < $c;) {
+                            if ($dataRow[$i++] == $columnName && ($max == null || $dataRow[$i] > $max)) {
+                                $max = $dataRow[$i];
+                                break;
+                            }
+                        }
+                    }
+                    return $max;
+            }
+            throw new InvalidArgumentException('Unknown fetch type: ' . $type);
+        }
+        return $data;
     }
 
     /**
@@ -157,14 +233,9 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         // TODO add support for orderBy
-        $data = $this->executeScript($db, 'One');
-        if (empty($data)) {
+        $row = $this->executeScript($db, 'One');
+        if (empty($row)) {
             return null;
-        }
-        $row = [];
-        $c = count($data);
-        for ($i = 0; $i < $c;) {
-            $row[$data[$i++]] = $data[$i++];
         }
         if ($this->asArray) {
             $model = $row;
@@ -242,9 +313,10 @@ class ActiveQuery implements ActiveQueryInterface
         $i = 0;
         $data = [];
         $orderArray = [];
+        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         foreach ($pks as $pk) {
             if (++$i > $start && ($limit === null || $i <= $start + $limit)) {
-                $key = $modelClass::keyPrefix() . ':a:' . $modelClass::buildKey($pk);
+                $key = $pkey . ':a:' . $modelClass::buildKey($pk);
                 $result = $db->executeCommand('HGETALL', [$key]);
                 if (!empty($result)) {
                     $data[] = $result;
@@ -281,52 +353,30 @@ class ActiveQuery implements ActiveQueryInterface
             case 'Column':
                 $column = [];
                 foreach ($data as $dataRow) {
-                    $row = [];
-                    $c = count($dataRow);
-                    for ($i = 0; $i < $c;) {
-                        $row[$dataRow[$i++]] = $dataRow[$i++];
-                    }
-                    $column[] = $row[$columnName];
+                    $column[] = $dataRow[$columnName];
                 }
 
                 return $column;
             case 'Sum':
                 $sum = 0;
                 foreach ($data as $dataRow) {
-                    $c = count($dataRow);
-                    for ($i = 0; $i < $c;) {
-                        if ($dataRow[$i++] == $columnName) {
-                            $sum += $dataRow[$i];
-                            break;
-                        }
-                    }
+                    $sum += $dataRow[$columnName];
                 }
 
                 return $sum;
             case 'Average':
                 $sum = 0;
-                $count = 0;
+                $count = count($dataRow);
                 foreach ($data as $dataRow) {
-                    $count++;
-                    $c = count($dataRow);
-                    for ($i = 0; $i < $c;) {
-                        if ($dataRow[$i++] == $columnName) {
-                            $sum += $dataRow[$i];
-                            break;
-                        }
-                    }
+                    $sum += $dataRow[$columnName];
                 }
 
                 return $sum / $count;
             case 'Min':
                 $min = null;
                 foreach ($data as $dataRow) {
-                    $c = count($dataRow);
-                    for ($i = 0; $i < $c;) {
-                        if ($dataRow[$i++] == $columnName && ($min == null || $dataRow[$i] < $min)) {
-                            $min = $dataRow[$i];
-                            break;
-                        }
+                    if ($min === null || $dataRow[$columnName] < $min) {
+                        $min = $dataRow[$columnName];
                     }
                 }
 
@@ -334,12 +384,8 @@ class ActiveQuery implements ActiveQueryInterface
             case 'Max':
                 $max = null;
                 foreach ($data as $dataRow) {
-                    $c = count($dataRow);
-                    for ($i = 0; $i < $c;) {
-                        if ($dataRow[$i++] == $columnName && ($max == null || $dataRow[$i] > $max)) {
-                            $max = $dataRow[$i];
-                            break;
-                        }
+                    if ($dataRow[$columnName] > $max) {
+                        $max = $dataRow[$columnName];
                     }
                 }
 
@@ -368,7 +414,7 @@ class ActiveQuery implements ActiveQueryInterface
                 $db = $modelClass::getDb();
             }
 
-            return $db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
+            return $db->executeCommand('LLEN', [$pkey]);
         } else {
             return $this->executeScript($db, 'Count');
         }
@@ -445,7 +491,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the minimum of the specified column values.
      */
-    public function min(string $column, $db = null): int
+    public function min(string $column, $db = null): ?int
     {
         if ($this->emulateExecution) {
             return null;
@@ -461,7 +507,7 @@ class ActiveQuery implements ActiveQueryInterface
      * If this parameter is not given, the `db` application component will be used.
      * @return int the maximum of the specified column values.
      */
-    public function max(string $column, $db = null): int
+    public function max(string $column, $db = null): ?int
     {
         if ($this->emulateExecution) {
             return null;

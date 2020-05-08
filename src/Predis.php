@@ -4,7 +4,11 @@ declare(strict_types=1);
 namespace rabbit\db\redis;
 
 use Predis\Client;
+use rabbit\App;
 use rabbit\db\Exception;
+use rabbit\db\redis\Commands\ClusterEVAL;
+use rabbit\db\redis\Commands\EXEC;
+use rabbit\db\redis\Commands\MUTIL;
 use rabbit\exception\NotSupportedException;
 use rabbit\helper\ArrayHelper;
 use rabbit\pool\AbstractConnection;
@@ -16,6 +20,8 @@ use rabbit\pool\PoolManager;
  */
 class Predis extends AbstractConnection
 {
+    use ClusterTrait;
+
     /** @var Client */
     private $conn;
 
@@ -26,8 +32,23 @@ class Predis extends AbstractConnection
     {
         $pool = PoolManager::getPool($this->poolKey);
         $address = $pool->getServiceList(true);
-        $config = $this->parseUri(current($address));
+        $currAddr = current($address);
+        $config = $this->parseUri($currAddr);
+        if (isset($config['sentinel'])) {
+            $config['replication'] = 'sentinel';
+            $config['service'] = ArrayHelper::remove($config, 'master', 'mymaster');
+            unset($config['sentinel']);
+        } else {
+            $address = count($address) === 1 ? $currAddr : $address;
+        }
         $this->conn = new Client($address, $config);
+        if (isset($config['cluster'])) {
+            $this->cluster = true;
+            $profile = $this->conn->getProfile();
+            $profile->defineCommand('MULTI', MUTIL::class);
+            $profile->defineCommand('EXEC', EXEC::class);
+            $profile->defineCommand('EVAL', ClusterEVAL::class);
+        }
     }
 
     /**
@@ -48,7 +69,7 @@ class Predis extends AbstractConnection
         $query = $parseAry['query'] ?? '';
         parse_str($query, $options);
         $options['parameters']['password'] = ArrayHelper::remove($options, 'password', null);
-        (isset($parseAry['path']) && !isset($options['cluster'])) && $options['parameters']['database'] = str_replace('/', '', $parseAry['path']);
+        (isset($parseAry['path']) && !isset($options['cluster'])) && $options['parameters']['database'] = (int)str_replace('/', '', $parseAry['path']);
         return $options;
     }
 
@@ -63,12 +84,13 @@ class Predis extends AbstractConnection
 
     public function reconnect(): void
     {
+        App::warning("predis reconnecting...");
         $this->createConnection();
     }
 
     public function check(): bool
     {
-        return true;
+        return $this->conn->isConnected();
     }
 
     public function receive(float $timeout = -1)

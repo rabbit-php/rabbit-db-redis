@@ -35,10 +35,11 @@ class ActiveRecord extends BaseActiveRecord
         $db = static::getDb();
         $conn = $db->getConn();
         $n = 0;
+        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         foreach (self::fetchPks($condition) as $pk) {
             $newPk = $pk;
             $pk = static::buildKey($pk);
-            $key = static::keyPrefix() . ':a:' . $pk;
+            $key = $pkey . ':a:' . $pk;
             // save attributes
             $delArgs = [$key];
             $setArgs = [$key];
@@ -61,7 +62,7 @@ class ActiveRecord extends BaseActiveRecord
                 }
             }
             $newPk = static::buildKey($newPk);
-            $newKey = static::keyPrefix() . ':a:' . $newPk;
+            $newKey = $pkey . ':a:' . $newPk;
             // rename index if pk changed
             if ($newPk != $pk) {
                 $conn->executeCommand('MULTI');
@@ -81,11 +82,11 @@ class ActiveRecord extends BaseActiveRecord
                         $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
                     }
                 }
-                $conn->executeCommand('LINSERT', [static::keyPrefix(), 'AFTER', $pk, $newPk]);
+                $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
                 if ($db instanceof Redis) {
-                    $conn->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                 } else {
-                    $conn->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+                    $conn->executeCommand('LREM', [$pkey, $pk, 0]);
                 }
                 $conn->executeCommand('RENAME', [$key, $newKey]);
                 $conn->executeCommand('EXEC');
@@ -163,8 +164,9 @@ class ActiveRecord extends BaseActiveRecord
         $db = static::getDb();
         $conn = $db->getConn();
         $n = 0;
+        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         foreach (self::fetchPks($condition) as $pk) {
-            $key = static::keyPrefix() . ':a:' . static::buildKey($pk);
+            $key = $pkey . ':a:' . static::buildKey($pk);
             foreach ($counters as $attribute => $value) {
                 $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
             }
@@ -198,16 +200,17 @@ class ActiveRecord extends BaseActiveRecord
         $db = static::getDb();
         $conn = $db->getConn();
         $attributeKeys = [];
+        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         $conn->executeCommand('MULTI');
         foreach ($pks as $pk) {
             $pk = static::buildKey($pk);
             if ($db instanceof Redis) {
-                $conn->executeCommand('LREM', [static::keyPrefix(), 0, $pk]);
+                $conn->executeCommand('LREM', [$pkey, 0, $pk]);
             } else {
-                $conn->executeCommand('LREM', [static::keyPrefix(), $pk, 0]);
+                $conn->executeCommand('LREM', [$pkey, $pk, 0]);
             }
 
-            $attributeKeys[] = static::keyPrefix() . ':a:' . $pk;
+            $attributeKeys[] = $pkey . ':a:' . $pk;
         }
         $conn->executeCommand('DEL', $attributeKeys);
         $result = $conn->executeCommand('EXEC');
@@ -238,25 +241,26 @@ class ActiveRecord extends BaseActiveRecord
         $conn = $db->getConn();
         $values = $this->getDirtyAttributes($attributes);
         $pk = [];
+        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         foreach ($this->primaryKey() as $key) {
             $pk[$key] = $values[$key] = $this->getAttribute($key);
             if ($pk[$key] === null) {
                 // use auto increment if pk is null
-                $pk[$key] = $values[$key] = $conn->executeCommand('INCR', [static::keyPrefix() . ':s:' . $key]);
+                $pk[$key] = $values[$key] = $conn->executeCommand('INCR', [$pkey . ':s:' . $key]);
                 $this->setAttribute($key, $values[$key]);
             } elseif (is_numeric($pk[$key])) {
                 // if pk is numeric update auto increment value
-                $currentPk = $conn->executeCommand('GET', [static::keyPrefix() . ':s:' . $key]);
+                $currentPk = $conn->executeCommand('GET', [$pkey . ':s:' . $key]);
                 if ($pk[$key] > $currentPk) {
-                    $conn->executeCommand('SET', [static::keyPrefix() . ':s:' . $key, $pk[$key]]);
+                    $conn->executeCommand('SET', [$pkey . ':s:' . $key, $pk[$key]]);
                 }
             }
         }
         // save pk in a findall pool
         $pk = static::buildKey($pk);
-        $conn->executeCommand('RPUSH', [static::keyPrefix(), $pk]);
+        $conn->executeCommand('RPUSH', [$pkey, $pk]);
 
-        $key = static::keyPrefix() . ':a:' . $pk;
+        $key = $pkey . ':a:' . $pk;
         // save attributes
         $setArgs = [$key];
         foreach ($values as $attribute => $value) {

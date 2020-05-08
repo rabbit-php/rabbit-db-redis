@@ -17,6 +17,8 @@ use rabbit\pool\PoolManager;
  */
 class PhpRedis extends AbstractConnection
 {
+    use ClusterTrait;
+
     /** @var \RedisCluster|\Redis */
     private $conn;
     /** @var \RedisSentinel */
@@ -33,6 +35,7 @@ class PhpRedis extends AbstractConnection
         $config = $this->parseUri(current($address), $parseAry);
         $client = ArrayHelper::remove($config, 'client', 'predis');
         if (isset($config['cluster'])) {
+            $this->cluster = true;
             $this->conn = new \RedisCluster(NULL, $address, $pool->getTimeout(), $pool->getTimeout(), false, ArrayHelper::getValue($config, 'parameters.password', ""));
             if (isset($config['separate'])) {
                 $this->conn->setOption(\RedisCluster::OPT_SLAVE_FAILOVER, \RedisCluster::FAILOVER_DISTRIBUTE_SLAVES);
@@ -50,6 +53,10 @@ class PhpRedis extends AbstractConnection
                 }
                 System::sleep($pool->getTimeout());
             }
+        } else {
+            $this->conn = new \Redis();
+            $retry = $pool->getPoolConfig()->getMaxReonnect();
+            $this->conn->connect($parseAry['host'], $parseAry['port'], $pool->getTimeout());
         }
     }
 

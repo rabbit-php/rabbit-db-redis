@@ -525,21 +525,10 @@ class SwooleRedis
      */
     public function __call($method, $arguments)
     {
-        return $this->call($method, $arguments);
-    }
-
-    /**
-     * @param string $method
-     * @param array $params
-     * @return mixed
-     */
-    public function call(string $method, array $params)
-    {
         /* @var Connection $client */
         $client = $this->pool->getConnection();
-        $result = $client->$method(...$params);
+        $result = $client->$method(...$arguments);
         $client->release(true);
-
         return $result;
     }
 
