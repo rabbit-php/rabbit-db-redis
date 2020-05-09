@@ -48,7 +48,8 @@ class PhpRedis extends AbstractConnection
             $retry = $pool->getPoolConfig()->getMaxReonnect();
             while ($retry--) {
                 if (false !== $master = $this->sentinel->getMasterAddrByName(ArrayHelper::getValue($config, 'master', 'mymaster'))) {
-                    $this->conn->connect(...$master);
+                    [$host, $port] = $master;
+                    $this->conn->connect($host, (int)$port);
                     break;
                 }
                 System::sleep($pool->getTimeout());
@@ -56,7 +57,7 @@ class PhpRedis extends AbstractConnection
         } else {
             $this->conn = new \Redis();
             $retry = $pool->getPoolConfig()->getMaxReonnect();
-            $this->conn->connect($parseAry['host'], $parseAry['port'], $pool->getTimeout());
+            $this->conn->connect($parseAry['host'], (int)$parseAry['port'], $pool->getTimeout());
         }
     }
 
