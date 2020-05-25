@@ -16,6 +16,8 @@ use Swoole\Coroutine\System;
  */
 class SwooleConnection extends AbstractConnection
 {
+    use ClusterTrait;
+
     /**
      * @var \Swoole\Coroutine\Redis
      */

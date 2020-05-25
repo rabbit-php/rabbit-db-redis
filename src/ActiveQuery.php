@@ -6,6 +6,7 @@ use rabbit\activerecord\ActiveQueryInterface;
 use rabbit\activerecord\ActiveQueryTrait;
 use rabbit\activerecord\ActiveRelationTrait;
 use rabbit\db\QueryTrait;
+use rabbit\db\QueryTraitExt;
 use rabbit\exception\InvalidArgumentException;
 use rabbit\exception\NotSupportedException;
 
@@ -16,6 +17,7 @@ use rabbit\exception\NotSupportedException;
 class ActiveQuery implements ActiveQueryInterface
 {
     use QueryTrait;
+    use QueryTraitExt;
     use ActiveQueryTrait;
     use ActiveRelationTrait;
 
