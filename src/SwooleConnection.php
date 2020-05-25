@@ -65,7 +65,7 @@ class SwooleConnection extends AbstractConnection
 
         $db = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
         $password = isset($config['password']) ? $config['password'] : null;
-        $redis = $this->getConnectRedis($host, $port, $db, $timeout, $password);
+        $redis = $this->getConnectRedis($host, $port, $db, $password);
         if ($options) {
             $redis->setOptions($options);
         }
@@ -110,14 +110,13 @@ class SwooleConnection extends AbstractConnection
         string $host,
         int $port,
         int $db,
-        float $timeout,
         string $password = null
     ): \Swoole\Coroutine\Redis
     {
         /* @var RedisPoolConfig $poolConfig */
         $poolConfig = PoolManager::getPool($this->poolKey)->getPoolConfig();
         $serialize = $poolConfig->getSerialize();
-        $redis = new \Swoole\Coroutine\Redis(['timeout' => $timeout]);
+        $redis = new \Swoole\Coroutine\Redis(['timeout' => $poolConfig->getTimeout()]);
         $retry = $this->retries;
         while ($retry-- > 0) {
             $result = $redis->connect($host, $port, $serialize);
