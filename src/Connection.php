@@ -385,7 +385,7 @@ class Connection extends AbstractConnection
                 try {
                     $data = $this->sendCommandInternal($command, $params, $type);
                     if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
-                        return $this->parseData($data);
+                        return Redis::parseData($data);
                     }
                     return $data;
                 } catch (SocketException $e) {
@@ -403,23 +403,9 @@ class Connection extends AbstractConnection
         }
         $data = $this->sendCommandInternal($command, $params, $type);
         if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
-            return $this->parseData($data);
+            return Redis::parseData($data);
         }
         return $data;
-    }
-
-    /**
-     * @param array $data
-     * @return array
-     */
-    private function parseData(array $data)
-    {
-        $row = [];
-        $c = count($data);
-        for ($i = 0; $i < $c;) {
-            $row[$data[$i++]] = $data[$i++];
-        }
-        return $row;
     }
 
     /**

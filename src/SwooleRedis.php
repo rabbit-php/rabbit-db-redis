@@ -578,4 +578,18 @@ class SwooleRedis
     {
         throw new Exception("This driver not need release");
     }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    public static function parseData(array $data)
+    {
+        $row = [];
+        $c = count($data);
+        for ($i = 0; $i < $c;) {
+            $row[$data[$i++]] = $data[$i++];
+        }
+        return $row;
+    }
 }

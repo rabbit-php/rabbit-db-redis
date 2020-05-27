@@ -189,7 +189,11 @@ class SwooleConnection extends AbstractConnection
     public function __call($method, $arguments)
     {
         $this->separate();
-        return $this->{$this->currConn}->$method(...$arguments);
+        $data = $this->{$this->currConn}->$method(...$arguments);
+        if ($method === 'HGETALL' || ($method === 'CONFIG' && is_array($data))) {
+            return Redis::parseData($data);
+        }
+        return $data;
     }
 
     /**
@@ -200,7 +204,11 @@ class SwooleConnection extends AbstractConnection
     public function executeCommand(string $name, array $params = [])
     {
         $this->separate();
-        return $this->{$this->currConn}->$name(...$params);
+        $data = $this->{$this->currConn}->$name(...$params);
+        if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
+            return Redis::parseData($data);
+        }
+        return $data;
     }
 
     private function separate(): void
