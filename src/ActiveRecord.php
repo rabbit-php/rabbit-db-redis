@@ -33,10 +33,11 @@ class ActiveRecord extends BaseActiveRecord
             return 0;
         }
         $db = static::getDb();
-        $conn = $db->getConn();
         $n = 0;
-        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        foreach (self::fetchPks($condition) as $pk) {
+        $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+        $arr = self::fetchPks($condition);
+        $conn = $db->getConn();
+        foreach ($arr as $pk) {
             $newPk = $pk;
             $pk = static::buildKey($pk);
             $key = $pkey . ':a:' . $pk;
@@ -114,6 +115,10 @@ class ActiveRecord extends BaseActiveRecord
         return $n;
     }
 
+    /**
+     * @param $condition
+     * @return array
+     */
     private static function fetchPks($condition)
     {
         $query = static::find();
@@ -162,10 +167,11 @@ class ActiveRecord extends BaseActiveRecord
             return 0;
         }
         $db = static::getDb();
-        $conn = $db->getConn();
         $n = 0;
-        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        foreach (self::fetchPks($condition) as $pk) {
+        $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+        $arr = self::fetchPks($condition);
+        $conn = $db->getConn();
+        foreach ($arr as $pk) {
             $key = $pkey . ':a:' . static::buildKey($pk);
             foreach ($counters as $attribute => $value) {
                 $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
