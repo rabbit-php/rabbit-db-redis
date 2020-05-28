@@ -394,7 +394,7 @@ class Connection extends AbstractConnection
                     $retries = $this->retries;
                     $this->retries = 0;
                     $this->close(false);
-                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port));
+                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
                     System::sleep($this->retryDelay);
                     $this->open();
                     $this->retries = $retries;
