@@ -527,8 +527,11 @@ class SwooleRedis
     {
         /* @var Connection $client */
         $client = $this->pool->getConnection();
-        $result = $client->$method(...$arguments);
-        $client->release(true);
+        try {
+            $result = $client->$method(...$arguments);
+        } finally {
+            $client->release(true);
+        }
         return $result;
     }
 
@@ -568,15 +571,6 @@ class SwooleRedis
         $host = $config['host'];
         $port = (int)$config['port'];
         return [$host, $port];
-    }
-
-    /**
-     * @param bool $release
-     * @throws Exception
-     */
-    public function release($release = false): void
-    {
-        throw new Exception("This driver not need release");
     }
 
     /**
