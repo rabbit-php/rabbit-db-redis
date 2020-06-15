@@ -2,8 +2,8 @@
 
 namespace rabbit\db\redis;
 
+use rabbit\App;
 use rabbit\contract\ResultInterface;
-use rabbit\db\Exception;
 use rabbit\db\redis\pool\RedisPool;
 use rabbit\pool\ConnectionInterface;
 use rabbit\pool\PoolInterface;
@@ -529,6 +529,9 @@ class SwooleRedis
         $client = $this->pool->getConnection();
         try {
             $result = $client->$method(...$arguments);
+        } catch (\Throwable $exception) {
+            App::error($exception->getMessage(), 'redis');
+            throw $exception;
         } finally {
             $client->release(true);
         }

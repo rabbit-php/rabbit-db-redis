@@ -3,6 +3,7 @@
 namespace rabbit\db\redis;
 
 use rabbit\activerecord\BaseActiveRecord;
+use rabbit\App;
 use rabbit\core\ObjectFactory;
 use rabbit\exception\InvalidConfigException;
 use rabbit\helper\Inflector;
@@ -37,81 +38,87 @@ class ActiveRecord extends BaseActiveRecord
         $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         $arr = self::fetchPks($condition);
         $conn = $db->getConn();
-        foreach ($arr as $pk) {
-            $newPk = $pk;
-            $pk = static::buildKey($pk);
-            $key = $pkey . ':a:' . $pk;
-            // save attributes
-            $delArgs = [$key];
-            $setArgs = [$key];
-            foreach ($attributes as $attribute => $value) {
-                if (isset($newPk[$attribute])) {
-                    $newPk[$attribute] = $value;
-                }
-                if ($value !== null) {
-                    if (is_bool($value)) {
-                        $value = (int)$value;
+        try {
+            foreach ($arr as $pk) {
+                $newPk = $pk;
+                $pk = static::buildKey($pk);
+                $key = $pkey . ':a:' . $pk;
+                // save attributes
+                $delArgs = [$key];
+                $setArgs = [$key];
+                foreach ($attributes as $attribute => $value) {
+                    if (isset($newPk[$attribute])) {
+                        $newPk[$attribute] = $value;
                     }
-                    if ($db instanceof Redis) {
-                        $setArgs[] = $attribute;
-                        $setArgs[] = $value;
+                    if ($value !== null) {
+                        if (is_bool($value)) {
+                            $value = (int)$value;
+                        }
+                        if ($db instanceof Redis) {
+                            $setArgs[] = $attribute;
+                            $setArgs[] = $value;
+                        } else {
+                            $setArgs[$attribute] = $value;
+                        }
                     } else {
-                        $setArgs[$attribute] = $value;
+                        $delArgs[] = $attribute;
                     }
+                }
+                $newPk = static::buildKey($newPk);
+                $newKey = $pkey . ':a:' . $newPk;
+                // rename index if pk changed
+                if ($newPk != $pk) {
+                    $conn->executeCommand('MULTI');
+                    if (count($setArgs) > 1) {
+                        if ($db instanceof Redis) {
+                            $conn->executeCommand('HMSET', $setArgs);
+                        } else {
+                            $hash = array_shift($setArgs);
+                            $conn->executeCommand('HMSET', [$hash, $setArgs]);
+                        }
+                    }
+                    if (count($delArgs) > 1) {
+                        if ($db instanceof Redis) {
+                            $conn->executeCommand('HDEL', $delArgs);
+                        } else {
+                            $hash = array_shift($setArgs);
+                            $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        }
+                    }
+                    $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
+                    if ($db instanceof Redis) {
+                        $conn->executeCommand('LREM', [$pkey, 0, $pk]);
+                    } else {
+                        $conn->executeCommand('LREM', [$pkey, $pk, 0]);
+                    }
+                    $conn->executeCommand('RENAME', [$key, $newKey]);
+                    $conn->executeCommand('EXEC');
                 } else {
-                    $delArgs[] = $attribute;
+                    if (count($setArgs) > 1) {
+                        if ($db instanceof Redis) {
+                            $conn->executeCommand('HMSET', $setArgs);
+                        } else {
+                            $hash = array_shift($setArgs);
+                            $conn->executeCommand('HMSET', [$hash, $setArgs]);
+                        }
+                    }
+                    if (count($delArgs) > 1) {
+                        if ($db instanceof Redis) {
+                            $conn->executeCommand('HDEL', $delArgs);
+                        } else {
+                            $hash = array_shift($setArgs);
+                            $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        }
+                    }
                 }
+                $n++;
             }
-            $newPk = static::buildKey($newPk);
-            $newKey = $pkey . ':a:' . $newPk;
-            // rename index if pk changed
-            if ($newPk != $pk) {
-                $conn->executeCommand('MULTI');
-                if (count($setArgs) > 1) {
-                    if ($db instanceof Redis) {
-                        $conn->executeCommand('HMSET', $setArgs);
-                    } else {
-                        $hash = array_shift($setArgs);
-                        $conn->executeCommand('HMSET', [$hash, $setArgs]);
-                    }
-                }
-                if (count($delArgs) > 1) {
-                    if ($db instanceof Redis) {
-                        $conn->executeCommand('HDEL', $delArgs);
-                    } else {
-                        $hash = array_shift($setArgs);
-                        $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
-                    }
-                }
-                $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
-                if ($db instanceof Redis) {
-                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-                } else {
-                    $conn->executeCommand('LREM', [$pkey, $pk, 0]);
-                }
-                $conn->executeCommand('RENAME', [$key, $newKey]);
-                $conn->executeCommand('EXEC');
-            } else {
-                if (count($setArgs) > 1) {
-                    if ($db instanceof Redis) {
-                        $conn->executeCommand('HMSET', $setArgs);
-                    } else {
-                        $hash = array_shift($setArgs);
-                        $conn->executeCommand('HMSET', [$hash, $setArgs]);
-                    }
-                }
-                if (count($delArgs) > 1) {
-                    if ($db instanceof Redis) {
-                        $conn->executeCommand('HDEL', $delArgs);
-                    } else {
-                        $hash = array_shift($setArgs);
-                        $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
-                    }
-                }
-            }
-            $n++;
+        } catch (\Throwable $exception) {
+            App::error($exception->getMessage(), 'redis');
+            throw $exception;
+        } finally {
+            $conn->release(true);
         }
-        $conn->release(true);
         return $n;
     }
 
@@ -171,14 +178,20 @@ class ActiveRecord extends BaseActiveRecord
         $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
         $arr = self::fetchPks($condition);
         $conn = $db->getConn();
-        foreach ($arr as $pk) {
-            $key = $pkey . ':a:' . static::buildKey($pk);
-            foreach ($counters as $attribute => $value) {
-                $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
+        try {
+            foreach ($arr as $pk) {
+                $key = $pkey . ':a:' . static::buildKey($pk);
+                foreach ($counters as $attribute => $value) {
+                    $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
+                }
+                $n++;
             }
-            $n++;
+        } catch (\Throwable $exception) {
+            App::error($exception->getMessage(), 'redis');
+            throw $exception;
+        } finally {
+            $conn->release(true);
         }
-        $conn->release(true);
         return $n;
     }
 
@@ -205,22 +218,28 @@ class ActiveRecord extends BaseActiveRecord
 
         $db = static::getDb();
         $conn = $db->getConn();
-        $attributeKeys = [];
-        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        $conn->executeCommand('MULTI');
-        foreach ($pks as $pk) {
-            $pk = static::buildKey($pk);
-            if ($db instanceof Redis) {
-                $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-            } else {
-                $conn->executeCommand('LREM', [$pkey, $pk, 0]);
-            }
+        try {
+            $attributeKeys = [];
+            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $conn->executeCommand('MULTI');
+            foreach ($pks as $pk) {
+                $pk = static::buildKey($pk);
+                if ($db instanceof Redis) {
+                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
+                } else {
+                    $conn->executeCommand('LREM', [$pkey, $pk, 0]);
+                }
 
-            $attributeKeys[] = $pkey . ':a:' . $pk;
+                $attributeKeys[] = $pkey . ':a:' . $pk;
+            }
+            $conn->executeCommand('DEL', $attributeKeys);
+            $result = $conn->executeCommand('EXEC');
+        } catch (\Throwable $exception) {
+            App::error($exception->getMessage(), 'redis');
+            throw $exception;
+        } finally {
+            $conn->release(true);
         }
-        $conn->executeCommand('DEL', $attributeKeys);
-        $result = $conn->executeCommand('EXEC');
-        $conn->release(true);
 
         return end($result);
     }
@@ -245,54 +264,62 @@ class ActiveRecord extends BaseActiveRecord
         }
         $db = static::getDb();
         $conn = $db->getConn();
-        $values = $this->getDirtyAttributes($attributes);
-        $pk = [];
-        $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        foreach ($this->primaryKey() as $key) {
-            $pk[$key] = $values[$key] = $this->getAttribute($key);
-            if ($pk[$key] === null) {
-                // use auto increment if pk is null
-                $pk[$key] = $values[$key] = $conn->executeCommand('INCR', [$pkey . ':s:' . $key]);
-                $this->setAttribute($key, $values[$key]);
-            } elseif (is_numeric($pk[$key])) {
-                // if pk is numeric update auto increment value
-                $currentPk = $conn->executeCommand('GET', [$pkey . ':s:' . $key]);
-                if ($pk[$key] > $currentPk) {
-                    $conn->executeCommand('SET', [$pkey . ':s:' . $key, $pk[$key]]);
+        try {
+            $values = $this->getDirtyAttributes($attributes);
+            $pk = [];
+            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            foreach ($this->primaryKey() as $key) {
+                $pk[$key] = $values[$key] = $this->getAttribute($key);
+                if ($pk[$key] === null) {
+                    // use auto increment if pk is null
+                    $pk[$key] = $values[$key] = $conn->executeCommand('INCR', [$pkey . ':s:' . $key]);
+                    $this->setAttribute($key, $values[$key]);
+                } elseif (is_numeric($pk[$key])) {
+                    // if pk is numeric update auto increment value
+                    $currentPk = $conn->executeCommand('GET', [$pkey . ':s:' . $key]);
+                    if ($pk[$key] > $currentPk) {
+                        $conn->executeCommand('SET', [$pkey . ':s:' . $key, $pk[$key]]);
+                    }
                 }
             }
-        }
-        // save pk in a findall pool
-        $pk = static::buildKey($pk);
-        $conn->executeCommand('RPUSH', [$pkey, $pk]);
+            // save pk in a findall pool
+            $pk = static::buildKey($pk);
+            $conn->executeCommand('RPUSH', [$pkey, $pk]);
 
-        $key = $pkey . ':a:' . $pk;
-        // save attributes
-        $setArgs = [$key];
-        foreach ($values as $attribute => $value) {
-            // only insert attributes that are not null
-            if ($value !== null) {
-                if (is_bool($value)) {
-                    $value = (int)$value;
+            $key = $pkey . ':a:' . $pk;
+            // save attributes
+            $setArgs = [$key];
+            foreach ($values as $attribute => $value) {
+                // only insert attributes that are not null
+                if ($value !== null) {
+                    if (is_bool($value)) {
+                        $value = (int)$value;
+                    }
+                    if ($db instanceof Redis) {
+                        $setArgs[] = $attribute;
+                        $setArgs[] = $value;
+                    } else {
+                        $setArgs[$attribute] = $value;
+                    }
                 }
+            }
+
+            if (count($setArgs) > 1) {
                 if ($db instanceof Redis) {
-                    $setArgs[] = $attribute;
-                    $setArgs[] = $value;
+                    $conn->executeCommand('HMSET', $setArgs);
                 } else {
-                    $setArgs[$attribute] = $value;
+                    $hash = array_shift($setArgs);
+                    $conn->executeCommand('HMSET', [$hash, $setArgs]);
                 }
             }
+        } catch (\Throwable $exception) {
+            App::error($exception, 'redis');
+            throw $exception;
+        } finally {
+            $conn->release(true);
         }
 
-        if (count($setArgs) > 1) {
-            if ($db instanceof Redis) {
-                $conn->executeCommand('HMSET', $setArgs);
-            } else {
-                $hash = array_shift($setArgs);
-                $conn->executeCommand('HMSET', [$hash, $setArgs]);
-            }
-        }
-        $conn->release(true);
+
         $changedAttributes = array_fill_keys(array_keys($values), null);
         $this->setOldAttributes($values);
 
