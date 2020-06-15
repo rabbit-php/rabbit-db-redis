@@ -37,6 +37,7 @@ class RedisLock implements LockInterface
     public function __invoke(\Closure $function, string $name = '', float $timeout = 600, array $params = [])
     {
         try {
+            $name = empty($name) ? uniqid() : $name;
             if ($this->redis->set($name, true, ['NX', 'EX' => $timeout]) === false) {
                 return false;
             }
