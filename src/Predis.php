@@ -87,15 +87,4 @@ class Predis extends AbstractConnection
         App::warning("predis reconnecting...");
         $this->createConnection();
     }
-
-    public function check(): bool
-    {
-        return $this->conn->isConnected();
-    }
-
-    public function receive(float $timeout = -1)
-    {
-        throw new NotSupportedException('socket connection not support ' . __METHOD__);
-    }
-
 }

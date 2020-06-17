@@ -619,22 +619,4 @@ class Connection extends AbstractConnection
     {
         $this->open();
     }
-
-    /**
-     * @return bool
-     */
-    public function check(): bool
-    {
-        return ($this->_socket !== false && ($this->separate ? $this->_socketSlave !== false : true));
-    }
-
-    /**
-     * @param float $timeout
-     * @return mixed|void
-     * @throws NotSupportedException
-     */
-    public function receive(float $timeout = -1)
-    {
-        throw new NotSupportedException('socket connection not support ' . __METHOD__);
-    }
 }

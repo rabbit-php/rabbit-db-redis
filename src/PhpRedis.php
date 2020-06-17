@@ -97,15 +97,4 @@ class PhpRedis extends AbstractConnection
     {
         $this->createConnection();
     }
-
-    public function check(): bool
-    {
-        return true;
-    }
-
-    public function receive(float $timeout = -1)
-    {
-        throw new NotSupportedException('socket connection not support ' . __METHOD__);
-    }
-
 }

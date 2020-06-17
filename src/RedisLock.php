@@ -13,15 +13,15 @@ use rabbit\memory\atomic\LockInterface;
  */
 class RedisLock implements LockInterface
 {
-    /** @var SwooleRedis */
+    /** @var Redis */
     protected $redis;
 
     /**
      * RedisLock constructor.
-     * @param SwooleRedis|null $redis
+     * @param Redis|null $redis
      * @throws \Exception
      */
-    public function __construct(SwooleRedis $redis = null)
+    public function __construct(Redis $redis = null)
     {
         $this->redis = $redis ?? getDI('redis');
     }

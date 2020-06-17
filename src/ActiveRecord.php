@@ -54,11 +54,11 @@ class ActiveRecord extends BaseActiveRecord
                         if (is_bool($value)) {
                             $value = (int)$value;
                         }
-                        if ($db instanceof Redis) {
+                        if ($db instanceof SwooleRedis) {
+                            $setArgs[$attribute] = $value;
+                        } else {
                             $setArgs[] = $attribute;
                             $setArgs[] = $value;
-                        } else {
-                            $setArgs[$attribute] = $value;
                         }
                     } else {
                         $delArgs[] = $attribute;
@@ -70,44 +70,44 @@ class ActiveRecord extends BaseActiveRecord
                 if ($newPk != $pk) {
                     $conn->executeCommand('MULTI');
                     if (count($setArgs) > 1) {
-                        if ($db instanceof Redis) {
-                            $conn->executeCommand('HMSET', $setArgs);
-                        } else {
+                        if ($db instanceof SwooleRedis) {
                             $hash = array_shift($setArgs);
                             $conn->executeCommand('HMSET', [$hash, $setArgs]);
+                        } else {
+                            $conn->executeCommand('HMSET', $setArgs);
                         }
                     }
                     if (count($delArgs) > 1) {
-                        if ($db instanceof Redis) {
-                            $conn->executeCommand('HDEL', $delArgs);
-                        } else {
+                        if ($db instanceof SwooleRedis) {
                             $hash = array_shift($setArgs);
                             $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        } else {
+                            $conn->executeCommand('HDEL', $delArgs);
                         }
                     }
                     $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
-                    if ($db instanceof Redis) {
-                        $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-                    } else {
+                    if ($db instanceof SwooleRedis) {
                         $conn->executeCommand('LREM', [$pkey, $pk, 0]);
+                    } else {
+                        $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                     }
                     $conn->executeCommand('RENAME', [$key, $newKey]);
                     $conn->executeCommand('EXEC');
                 } else {
                     if (count($setArgs) > 1) {
-                        if ($db instanceof Redis) {
-                            $conn->executeCommand('HMSET', $setArgs);
-                        } else {
+                        if ($db instanceof SwooleRedis) {
                             $hash = array_shift($setArgs);
                             $conn->executeCommand('HMSET', [$hash, $setArgs]);
+                        } else {
+                            $conn->executeCommand('HMSET', $setArgs);
                         }
                     }
                     if (count($delArgs) > 1) {
-                        if ($db instanceof Redis) {
-                            $conn->executeCommand('HDEL', $delArgs);
-                        } else {
+                        if ($db instanceof SwooleRedis) {
                             $hash = array_shift($setArgs);
                             $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
+                        } else {
+                            $conn->executeCommand('HDEL', $delArgs);
                         }
                     }
                 }
@@ -224,10 +224,10 @@ class ActiveRecord extends BaseActiveRecord
             $conn->executeCommand('MULTI');
             foreach ($pks as $pk) {
                 $pk = static::buildKey($pk);
-                if ($db instanceof Redis) {
-                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-                } else {
+                if ($db instanceof SwooleRedis) {
                     $conn->executeCommand('LREM', [$pkey, $pk, 0]);
+                } else {
+                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                 }
 
                 $attributeKeys[] = $pkey . ':a:' . $pk;
@@ -295,21 +295,21 @@ class ActiveRecord extends BaseActiveRecord
                     if (is_bool($value)) {
                         $value = (int)$value;
                     }
-                    if ($db instanceof Redis) {
+                    if ($db instanceof SwooleRedis) {
+                        $setArgs[$attribute] = $value;
+                    } else {
                         $setArgs[] = $attribute;
                         $setArgs[] = $value;
-                    } else {
-                        $setArgs[$attribute] = $value;
                     }
                 }
             }
 
             if (count($setArgs) > 1) {
-                if ($db instanceof Redis) {
-                    $conn->executeCommand('HMSET', $setArgs);
-                } else {
+                if ($db instanceof SwooleRedis) {
                     $hash = array_shift($setArgs);
                     $conn->executeCommand('HMSET', [$hash, $setArgs]);
+                } else {
+                    $conn->executeCommand('HMSET', $setArgs);
                 }
             }
         } catch (\Throwable $exception) {

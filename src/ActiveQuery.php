@@ -125,10 +125,10 @@ class ActiveQuery implements ActiveQueryInterface
         $method = 'build' . $type;
         $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
-        $data = $db instanceof Redis ? $db->executeCommand('EVAL', [$script, 0]) : $db->executeCommand(
+        $data = $db instanceof SwooleRedis ? $db->executeCommand(
             'EVAL',
             [$script, []]
-        );
+        ) : $db->executeCommand('EVAL', [$script, 0]);
         if (is_array($data)) {
             switch ($type) {
                 case 'All':

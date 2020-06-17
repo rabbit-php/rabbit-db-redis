@@ -138,50 +138,6 @@ class SwooleConnection extends AbstractConnection
     }
 
     /**
-     * @return bool
-     */
-    public function check(): bool
-    {
-        try {
-            if (false === $this->master->ping()) {
-                $this->currConn = SwooleRedis::CONN_MASTER;
-                App::warning('Master Connection lost');
-                return false;
-            }
-            if ($this->slave && false === $this->slave->ping()) {
-                $this->currConn = SwooleRedis::CONN_SLAVE;
-                App::warning('Slave Connection lost');
-                return false;
-            }
-            return true;
-        } catch (\Throwable $throwable) {
-            return false;
-        }
-    }
-
-    /**
-     * @param float|null $timeout
-     * @return mixed
-     */
-    public function receive(float $timeout = -1)
-    {
-        $result = $this->{$this->currConn}->recv($timeout);
-        $this->{$this->currConn}->setDefer(false);
-        $this->recv = true;
-
-        return $result;
-    }
-
-    /**
-     * @param bool $defer
-     */
-    public function setDefer($defer = true): bool
-    {
-        $this->recv = false;
-        return $this->{$this->currConn}->setDefer($defer);
-    }
-
-    /**
      * @param $method
      * @param $arguments
      * @return mixed
