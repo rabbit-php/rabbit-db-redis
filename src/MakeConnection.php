@@ -54,7 +54,7 @@ class MakeConnection
                             'minActive' => intval($min / swoole_cpu_num()),
                             'maxActive' => intval($max / swoole_cpu_num()),
                             'maxWait' => $wait,
-                            'maxReconnect' => $retry,
+                            'maxRetry' => $retry,
                             'uri' => [$dsn]
                         ], [], false)
                     ], [], false)
