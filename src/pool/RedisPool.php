@@ -19,11 +19,9 @@ class RedisPool extends ConnectionPool
     protected $connection;
 
     /**
-     * @return ConnectionInterface
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
+     * @return mixed|Connection
      */
-    public function createConnection(): ConnectionInterface
+    public function create()
     {
         $connection = $this->connection;
         $redis = is_string($this->connection) ? new $connection($this->getPoolConfig()->getName()) : new Connection($this->getPoolConfig()->getName());

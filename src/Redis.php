@@ -489,7 +489,7 @@ class Redis
      */
     public function getConn(): ConnectionInterface
     {
-        return $this->pool->getConnection();
+        return $this->pool->get();
     }
 
     /**
@@ -508,7 +508,7 @@ class Redis
     public function __call($method, $arguments)
     {
         /* @var Connection $client */
-        $client = $this->pool->getConnection();
+        $client = $this->pool->get();
         try {
             $result = $client->$method(...$arguments);
         } catch (\Throwable $exception) {

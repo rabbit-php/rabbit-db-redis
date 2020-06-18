@@ -46,7 +46,7 @@ class SwooleConnection extends AbstractConnection
         $timeout = $pool->getTimeout();
         $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
-        $options = $pool->getPoolConfig()->getOptions();
+        $options = $pool->getPoolConfig()->getConfig();
         if ($this->currConn === SwooleRedis::CONN_MASTER) {
             $this->makeConn($config, $options, SwooleRedis::CONN_MASTER);
         }
