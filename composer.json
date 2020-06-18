@@ -10,8 +10,8 @@
     }
   ],
   "require": {
-    "rabbit/framework": "dev-master",
-    "rabbit/active-record": "dev-master"
+    "rabbit/framework": "^1.0",
+    "rabbit/active-record": "^1.0"
   },
   "autoload": {
     "psr-4": {
