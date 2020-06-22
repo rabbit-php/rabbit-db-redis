@@ -291,11 +291,11 @@ class Connection extends AbstractConnection
     /**
      * @var resource redis socket connection
      */
-    private $_socket = false;
+    private $_socket = null;
     /**
      * @var resource redis socket connection
      */
-    private $_socketSlave = false;
+    private $_socketSlave = null;
     /** @var bool */
     private $separate = false;
 
@@ -315,7 +315,7 @@ class Connection extends AbstractConnection
      */
     public function close(bool $quit = true)
     {
-        if ($this->_socket !== false) {
+        if ($this->_socket !== null) {
             $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
             App::warning('Closing DB connection: ' . $connection, 'redis');
             if ($quit) {
@@ -326,11 +326,11 @@ class Connection extends AbstractConnection
                 }
             }
             fclose($this->_socket);
-            $this->_socket = false;
+            $this->_socket = null;
         }
-        if ($this->_socketSlave !== false) {
+        if ($this->_socketSlave !== null) {
             fclose($this->_socketSlave);
-            $this->_socketSlave = false;
+            $this->_socketSlave = null;
         }
     }
 
@@ -363,7 +363,6 @@ class Connection extends AbstractConnection
      */
     public function executeCommand(string $name, array $params = [])
     {
-        $this->open();
         $name = strtoupper($name);
         $tmp = [];
         if ($this->_socketSlave && in_array($name, Redis::READ_COMMAND)) {
@@ -377,35 +376,28 @@ class Connection extends AbstractConnection
         foreach ($params as $arg) {
             $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
         }
-
         App::debug("Executing Redis Command: {$name}", 'redis');
-        if ($this->retries > 0) {
-            $tries = $this->retries;
-            while ($tries-- > 0) {
-                try {
-                    $data = $this->sendCommandInternal($command, $params, $type);
-                    if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
-                        return Redis::parseData($data);
-                    }
-                    return $data;
-                } catch (SocketException $e) {
-                    App::error((string)$e, 'redis');
-                    // backup retries, fail on commands that fail inside here
-                    $retries = $this->retries;
-                    $this->retries = 0;
-                    $this->close(false);
-                    App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
-                    System::sleep($this->retryDelay);
-                    $this->open();
-                    $this->retries = $retries;
+        $this->open();
+        $retrys = $this->retries > 0 ? $this->retries : 1;
+        while ($retrys-- >= 0) {
+            try {
+                $data = $this->sendCommandInternal($command, $params, $type);
+                if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
+                    return Redis::parseData($data);
                 }
+                return $data;
+            } catch (SocketException $e) {
+                if ($retrys === 0) {
+                    throw $e;
+                }
+                App::error((string)$e, 'redis');
+                $this->close(false);
+                App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
+                System::sleep($this->retryDelay);
+                $this->$type = null;
+                $this->open();
             }
         }
-        $data = $this->sendCommandInternal($command, $params, $type);
-        if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
-            return Redis::parseData($data);
-        }
-        return $data;
     }
 
     /**
@@ -432,7 +424,7 @@ class Connection extends AbstractConnection
      */
     public function open()
     {
-        if ($this->_socket !== false) {
+        if ($this->_socket !== null) {
             return;
         }
         $pool = PoolManager::getPool($this->poolKey);
@@ -441,7 +433,7 @@ class Connection extends AbstractConnection
         $config = $this->parseUri($address);
         $this->separate = ArrayHelper::remove($config, 'separate', false);
         $this->makeConn($config, '_socket');
-        if ($this->separate && $this->_socketSlave === false) {
+        if ($this->separate && $this->_socketSlave === null) {
             $this->makeConn($config, '_socketSlave');
         }
     }
@@ -481,6 +473,7 @@ class Connection extends AbstractConnection
                 $this->executeCommand('SELECT', [$this->database]);
             }
         } else {
+            $this->$type = null;
             App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
             $message = getDI('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
             throw new Exception($message, $errorDescription, $errorNumber);
