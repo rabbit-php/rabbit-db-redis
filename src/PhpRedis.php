@@ -6,7 +6,6 @@ namespace rabbit\db\redis;
 
 use Co\System;
 use rabbit\db\Exception;
-use rabbit\exception\NotSupportedException;
 use rabbit\helper\ArrayHelper;
 use rabbit\pool\AbstractConnection;
 use rabbit\pool\PoolManager;
@@ -45,15 +44,17 @@ class PhpRedis extends AbstractConnection
                 $this->sentinel = new \RedisSentinel($parseAry['host'], $parseAry['port'], $pool->getTimeout());
             }
             $this->conn = new \Redis();
-            $retry = $pool->getPoolConfig()->getMaxRetry();
-            while ($retry--) {
+            $retrys = $pool->getPoolConfig()->getMaxRetry();
+            $retrys = $retrys > 0 ? $retrys : 1;
+            while ($retrys--) {
                 if (false !== $master = $this->sentinel->getMasterAddrByName(ArrayHelper::getValue($config, 'master', 'mymaster'))) {
                     [$host, $port] = $master;
                     $this->conn->connect($host, (int)$port);
-                    break;
+                    return;
                 }
-                System::sleep($pool->getTimeout());
+                $retry > 0 && System::sleep($pool->getTimeout());
             }
+            throw new Exception("Connect to $host:$port failed!");
         } else {
             $this->conn = new \Redis();
             $retry = $pool->getPoolConfig()->getMaxRetry();

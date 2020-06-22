@@ -378,8 +378,9 @@ class Connection extends AbstractConnection
         }
         App::debug("Executing Redis Command: {$name}", 'redis');
         $this->open();
-        $retrys = $this->retries > 0 ? $this->retries : 1;
-        while ($retrys-- >= 0) {
+        $retrys = $this->getPool()->getPoolConfig()->getMaxRetry();
+        $retrys = $retrys > 0 ? $retrys : 1;
+        while ($retrys--) {
             try {
                 $data = $this->sendCommandInternal($command, $params, $type);
                 if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {

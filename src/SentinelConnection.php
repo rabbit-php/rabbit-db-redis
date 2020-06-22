@@ -40,8 +40,9 @@ class SentinelConnection
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port);
         App::info('Opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
         $this->_socket = new Client(SWOOLE_SOCK_TCP);
-        $retry = $this->retry;
-        while ($retry--) {
+        $retrys = $this->retry;
+        $retrys = $retrys > 0 ? $retrys : 1;
+        while ($retrys--) {
             if ($this->_socket->connect($this->hostname, $this->port, $this->connectionTimeout ?? 3) === false) {
                 App::warning('Failed opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
                 continue;
@@ -114,8 +115,9 @@ class SentinelConnection
             $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
         }
 
-        $retry = $this->retry;
-        while ($retry--) {
+        $retrys = $this->retry;
+        $retrys = $retrys > 0 ? $retrys : 1;
+        while ($retrys--) {
             try {
                 $written = $this->_socket->send($command);
                 if ($written === false) {

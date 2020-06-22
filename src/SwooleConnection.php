@@ -119,9 +119,9 @@ class SwooleConnection extends AbstractConnection
         $poolConfig = PoolManager::getPool($this->poolKey)->getPoolConfig();
         $serialize = $poolConfig->getSerialize();
         $redis = new \Swoole\Coroutine\Redis(['timeout' => $poolConfig->getTimeout()]);
-        $retry = $this->getPool()->getPoolConfig()->getMaxRetry();
-        $retry = $retry > 0 ? $retry : 1;
-        while ($retry-- > 0) {
+        $retrys = $this->getPool()->getPoolConfig()->getMaxRetry();
+        $retrys = $retrys > 0 ? $retrys : 1;
+        while ($retrys--) {
             $result = $redis->connect($host, $port, $serialize);
             if ($result !== false) {
                 if ($password) {
