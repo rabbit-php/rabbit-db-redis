@@ -134,7 +134,7 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         $method = 'build' . $type;
-        $script = (new LuaScriptBuilder())->$method($this, $columnName);
+        $script = create(LuaScriptBuilder::class)->$method($this, $columnName);
 
         $data = $db->executeCommand('EVAL', [$script, 0]);
         if (is_array($data)) {
@@ -256,7 +256,7 @@ class ActiveQuery implements ActiveQueryInterface
         } else {
             /* @var $class ActiveRecord */
             $class = $this->modelClass;
-            $model = $class::instantiate($row);
+            $model = $class::instantiate();
             $class = get_class($model);
             $class::populateRecord($model, $row);
         }
@@ -493,7 +493,7 @@ class ActiveQuery implements ActiveQueryInterface
             return 0;
         }
 
-        return $this->executeScript($db, 'Sum', $column);
+        return (int)$this->executeScript($db, 'Sum', $column);
     }
 
     /**
@@ -513,7 +513,7 @@ class ActiveQuery implements ActiveQueryInterface
         if ($this->emulateExecution) {
             return 0;
         }
-        return $this->executeScript($db, 'Average', $column);
+        return (int)$this->executeScript($db, 'Average', $column);
     }
 
     /**
@@ -533,7 +533,7 @@ class ActiveQuery implements ActiveQueryInterface
         if ($this->emulateExecution) {
             return null;
         }
-        return $this->executeScript($db, 'Min', $column);
+        return (int)$this->executeScript($db, 'Min', $column);
     }
 
     /**
@@ -548,12 +548,12 @@ class ActiveQuery implements ActiveQueryInterface
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function max(string $column,ConnectionInterface $db = null): ?int
+    public function max(string $column, ConnectionInterface $db = null): ?int
     {
         if ($this->emulateExecution) {
             return null;
         }
-        return $this->executeScript($db, 'Max', $column);
+        return (int)$this->executeScript($db, 'Max', $column);
     }
 
     /**
@@ -569,7 +569,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function scalar(string $attribute,ConnectionInterface $db = null): ?string
+    public function scalar(string $attribute, ConnectionInterface $db = null): ?string
     {
         if ($this->emulateExecution) {
             return null;

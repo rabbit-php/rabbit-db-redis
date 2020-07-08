@@ -97,7 +97,23 @@ class PhpRedis extends AbstractConnection
         if ($this->cluster) {
             return $this->connCluster->$name(...$args);
         }
-        return $this->conn->$name(...$args);
+        switch (strtolower($name)) {
+            case 'hmset':
+                $key = array_shift($args);
+                $args = Redis::parseData($args);
+                $data = $this->conn->$name($key, $args);
+                break;
+            case 'lrem':
+                $key = array_shift($args);
+                $data = $this->conn->$name($key, array_reverse($args));
+                break;
+            case 'eval':
+                $data = $this->conn->$name(array_shift($args), $args);
+                break;
+            default:
+                $data = $this->conn->$name(...$args);
+        }
+        return $data;
     }
 
     /**
