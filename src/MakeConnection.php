@@ -38,7 +38,7 @@ class MakeConnection
                 $max,
                 $wait,
                 $retry
-            ] = ArrayHelper::getValueByArray($pool, ['min', 'max', 'wait', 'retry'], null, [
+            ] = ArrayHelper::getValueByArray($pool, ['min', 'max', 'wait', 'retry'], [
                 10,
                 10,
                 0,
