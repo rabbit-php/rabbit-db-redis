@@ -1,18 +1,18 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
 use Predis\Client;
-use rabbit\App;
-use rabbit\db\Exception;
-use rabbit\db\redis\Commands\ClusterEVAL;
-use rabbit\db\redis\Commands\EXEC;
-use rabbit\db\redis\Commands\MUTIL;
-use rabbit\exception\NotSupportedException;
-use rabbit\helper\ArrayHelper;
-use rabbit\pool\AbstractConnection;
-use rabbit\pool\PoolManager;
+use Rabbit\Base\App;
+use Rabbit\Base\Core\Exception;
+use Rabbit\Base\Helper\ArrayHelper;
+use Rabbit\DB\Redis\Commands\ClusterEVAL;
+use Rabbit\DB\Redis\Commands\EXEC;
+use Rabbit\DB\Redis\Commands\MUTIL;
+use Rabbit\Pool\AbstractConnection;
+use Rabbit\Pool\PoolManager;
+use Throwable;
 
 /**
  * Class Predis
@@ -23,11 +23,8 @@ class Predis extends AbstractConnection
     use ClusterTrait;
 
     /** @var Client */
-    private $conn;
+    private ?Client $conn = null;
 
-    /**
-     * @throws \rabbit\core\Exception
-     */
     public function createConnection(): void
     {
         $pool = PoolManager::getPool($this->poolKey);
@@ -54,7 +51,7 @@ class Predis extends AbstractConnection
     /**
      * @param string $uri
      * @return array
-     * @throws \rabbit\core\Exception
+     * @throws Exception
      */
     protected function parseUri(string $uri): array
     {
@@ -76,12 +73,16 @@ class Predis extends AbstractConnection
     /**
      * @param string $name
      * @param array $params
+     * @return mixed
      */
     public function executeCommand(string $name, array $params = [])
     {
         return $this->conn->$name(...$params);
     }
 
+    /**
+     * @throws Throwable
+     */
     public function reconnect(): void
     {
         App::warning("predis reconnecting...");

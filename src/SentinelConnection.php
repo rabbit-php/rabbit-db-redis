@@ -1,36 +1,37 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
 use Co\Client;
-use rabbit\App;
+use Rabbit\Base\App;
+use Throwable;
 
 /**
  * Class SentinelConnection
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class SentinelConnection
 {
     /** @var string */
-    public $hostname;
+    public string $hostname = 'localhost';
     /** @var string */
-    public $masterName = 'mymaster';
+    public string $masterName = 'mymaster';
     /** @var int */
-    public $port = 26379;
+    public int $port = 26379;
     /** @var float */
-    public $connectionTimeout;
+    public ?float $connectionTimeout;
 
-    public $unixSocket;
+    public ?string $unixSocket = null;
     /** @var Client */
-    protected $_socket;
+    protected ?Client $_socket = null;
     /** @var int */
-    public $retry = 3;
+    public int $retry = 3;
 
 
     /**
      * @return bool
-     * @throws \Exception
+     * @throws Throwable
      */
     protected function open(): bool
     {
@@ -68,15 +69,16 @@ class SentinelConnection
 
     /**
      * @return array|bool|false|string|null
-     * @throws SocketException
+     * @throws Throwable
      */
     public function getMaster()
     {
         if ($this->open()) {
-            return $this->executeCommand('sentinel', [
-                'master',
-                $this->masterName
-            ], $this->_socket);
+            return $this->executeCommand('sentinel',
+                [
+                    'master',
+                    $this->masterName
+                ]);
         } else {
             return false;
         }
@@ -84,7 +86,7 @@ class SentinelConnection
 
     /**
      * @return array|bool|false|string|null
-     * @throws SocketException
+     * @throws Throwable
      */
     public function getSlave()
     {
@@ -92,7 +94,7 @@ class SentinelConnection
             return $this->executeCommand('sentinel', [
                 'slaves',
                 $this->masterName
-            ], $this->_socket);
+            ]);
         } else {
             return false;
         }
@@ -102,7 +104,7 @@ class SentinelConnection
      * @param string $name
      * @param array $params
      * @return array|bool|false|string|null
-     * @throws SocketException
+     * @throws Throwable
      */
     public function executeCommand(string $name, array $params)
     {
@@ -128,7 +130,7 @@ class SentinelConnection
                 }
 
                 return $this->parseResponse(implode(' ', $params));
-            } catch (\Throwable $exception) {
+            } catch (Throwable $exception) {
                 $this->close();
                 $this->open();
             }

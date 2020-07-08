@@ -1,26 +1,27 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-use rabbit\core\ObjectFactory;
-use rabbit\helper\ArrayHelper;
-use rabbit\db\redis\pool\RedisPool;
-use rabbit\db\redis\pool\RedisPoolConfig;
+
+use Rabbit\Base\Helper\ArrayHelper;
+use Rabbit\DB\Redis\Pool\RedisPool;
+use Rabbit\DB\Redis\Pool\RedisPoolConfig;
+use Rabbit\Pool\BaseManager;
+use Throwable;
 
 /**
  * Class MakeConnection
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class MakeConnection
 {
     /**
+     * @param string $class
      * @param string $name
      * @param string $dsn
      * @param array $pool
-     * @param array $config
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
+     * @throws Throwable
      */
     public static function addConnection(
         string $class,
@@ -29,9 +30,9 @@ class MakeConnection
         array $pool = []
     ): void
     {
-        /** @var Manager $manager */
+        /** @var BaseManager $manager */
         $manager = getDI('redis.manager');
-        if (!$manager->hasConnection($name)) {
+        if (!$manager->has($name)) {
             [
                 $min,
                 $max,
@@ -46,13 +47,13 @@ class MakeConnection
             $conn = [
                 $name => [
                     'class' => str_replace('Connection', 'Redis', $class),
-                    'pool' => ObjectFactory::createObject([
+                    'pool' => create([
                         'class' => RedisPool::class,
                         'connection' => $class,
-                        'poolConfig' => ObjectFactory::createObject([
+                        'poolConfig' => create([
                             'class' => RedisPoolConfig::class,
-                            'minActive' => intval($min / swoole_cpu_num()),
-                            'maxActive' => intval($max / swoole_cpu_num()),
+                            'minActive' => intval($min),
+                            'maxActive' => intval($max),
                             'maxWait' => $wait,
                             'maxRetry' => $retry,
                             'uri' => [$dsn]
@@ -60,7 +61,7 @@ class MakeConnection
                     ], [], false)
                 ]
             ];
-            $manager->addConnection($conn);
+            $manager->add($conn);
         }
     }
 }

@@ -1,18 +1,23 @@
 <?php
+declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-use rabbit\activerecord\ActiveQueryInterface;
-use rabbit\activerecord\ActiveQueryTrait;
-use rabbit\activerecord\ActiveRelationTrait;
-use rabbit\db\QueryTrait;
-use rabbit\db\QueryTraitExt;
-use rabbit\exception\InvalidArgumentException;
-use rabbit\exception\NotSupportedException;
+use Rabbit\ActiveRecord\ActiveQueryInterface;
+use Rabbit\ActiveRecord\ActiveQueryTrait;
+use Rabbit\ActiveRecord\ActiveRelationTrait;
+use Rabbit\Base\Exception\InvalidArgumentException;
+use Rabbit\Base\Exception\InvalidConfigException;
+use Rabbit\Base\Exception\NotSupportedException;
+use Rabbit\DB\QueryTrait;
+use Rabbit\DB\QueryTraitExt;
+use Rabbit\DB\ConnectionInterface;
+use ReflectionException;
+use Throwable;
 
 /**
  * Class ActiveQuery
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class ActiveQuery implements ActiveQueryInterface
 {
@@ -33,11 +38,14 @@ class ActiveQuery implements ActiveQueryInterface
 
     /**
      * Executes the query and returns all results as an array.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return array|ActiveRecord[] the query results. If the query results in nothing, an empty array will be returned.
+     * @throws InvalidConfigException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function all($db = null)
+    public function all(ConnectionInterface $db = null): array
     {
         if ($this->emulateExecution) {
             return [];
@@ -74,14 +82,17 @@ class ActiveQuery implements ActiveQueryInterface
 
     /**
      * Executes a script created by [[LuaScriptBuilder]]
-     * @param Connection|null $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @param string $type the type of the script to generate
      * @param string $columnName
      * @return array|bool|null|string
-     * @throws NotSupportedException
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    protected function executeScript($db, string $type, string $columnName = null)
+    protected function executeScript(ConnectionInterface $db, string $type, string $columnName = null)
     {
         if ($this->primaryModel !== null) {
             // lazy loading
@@ -125,10 +136,7 @@ class ActiveQuery implements ActiveQueryInterface
         $method = 'build' . $type;
         $script = (new LuaScriptBuilder())->$method($this, $columnName);
 
-        $data = $db instanceof SwooleRedis ? $db->executeCommand(
-            'EVAL',
-            [$script, []]
-        ) : $db->executeCommand('EVAL', [$script, 0]);
+        $data = $db->executeCommand('EVAL', [$script, 0]);
         if (is_array($data)) {
             switch ($type) {
                 case 'All':
@@ -222,13 +230,17 @@ class ActiveQuery implements ActiveQueryInterface
 
     /**
      * Executes the query and returns a single row of result.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return ActiveRecord|array|null a single row of query result. Depending on the setting of [[asArray]],
      * the query result may be either an array or an ActiveRecord object. Null will be returned
      * if the query results in nothing.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function one($db = null)
+    public function one(ConnectionInterface $db = null)
     {
         if ($this->emulateExecution) {
             return null;
@@ -259,15 +271,15 @@ class ActiveQuery implements ActiveQueryInterface
 
     /**
      * Fetch by pk if possible as this is much faster
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @param string $type the type of the script to generate
      * @param string $columnName
      * @return array|bool|null|string
-     * @throws \rabbit\exception\InvalidArgumentException
-     * @throws \rabbit\exception\NotSupportedException
+     * @throws InvalidArgumentException
+     * @throws Throwable
      */
-    private function findByPk($db, string $type, string $columnName = null)
+    private function findByPk(ConnectionInterface $db, string $type, string $columnName = null)
     {
         $needSort = !empty($this->orderBy) && in_array($type, ['All', 'One', 'Column']);
         if ($needSort) {
@@ -368,7 +380,7 @@ class ActiveQuery implements ActiveQueryInterface
                 return $sum;
             case 'Average':
                 $sum = 0;
-                $count = count($dataRow);
+                $count = count($data);
                 foreach ($data as $dataRow) {
                     $sum += $dataRow[$columnName];
                 }
@@ -399,11 +411,15 @@ class ActiveQuery implements ActiveQueryInterface
     /**
      * Returns the number of records.
      * @param string $q the COUNT expression. This parameter is ignored by this implementation.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return int number of records
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function count($q = '*', $db = null): int
+    public function count(string $q = '*', ConnectionInterface $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -415,20 +431,23 @@ class ActiveQuery implements ActiveQueryInterface
             if ($db === null) {
                 $db = $modelClass::getDb();
             }
-
-            return $db->executeCommand('LLEN', [$pkey]);
+            return (int)$db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
         } else {
-            return $this->executeScript($db, 'Count');
+            return (int)$this->executeScript($db, 'Count');
         }
     }
 
     /**
      * Returns a value indicating whether the query result contains any row of data.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return bool whether the query result contains any row of data.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function exists($db = null): bool
+    public function exists(ConnectionInterface $db = null): bool
     {
         if ($this->emulateExecution) {
             return false;
@@ -439,11 +458,15 @@ class ActiveQuery implements ActiveQueryInterface
     /**
      * Executes the query and returns the first column of the result.
      * @param string $column name of the column to select
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return array the first column of the query result. An empty array is returned if the query results in nothing.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function column(string $column, $db = null): array
+    public function column(string $column, ConnectionInterface $db = null): array
     {
         if ($this->emulateExecution) {
             return [];
@@ -456,11 +479,15 @@ class ActiveQuery implements ActiveQueryInterface
     /**
      * Returns the number of records.
      * @param string $column the column to sum up
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return int number of records
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function sum(string $column, $db = null): int
+    public function sum(string $column, ConnectionInterface $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -473,11 +500,15 @@ class ActiveQuery implements ActiveQueryInterface
      * Returns the average of the specified column values.
      * @param string $column the column name or expression.
      * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return int the average of the specified column values.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function average(string $column, $db = null): int
+    public function average(string $column, ConnectionInterface $db = null): int
     {
         if ($this->emulateExecution) {
             return 0;
@@ -489,11 +520,15 @@ class ActiveQuery implements ActiveQueryInterface
      * Returns the minimum of the specified column values.
      * @param string $column the column name or expression.
      * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return int the minimum of the specified column values.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function min(string $column, $db = null): ?int
+    public function min(string $column, ConnectionInterface $db = null): ?int
     {
         if ($this->emulateExecution) {
             return null;
@@ -505,11 +540,15 @@ class ActiveQuery implements ActiveQueryInterface
      * Returns the maximum of the specified column values.
      * @param string $column the column name or expression.
      * Make sure you properly quote column names in the expression.
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return int the maximum of the specified column values.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function max(string $column, $db = null): ?int
+    public function max(string $column,ConnectionInterface $db = null): ?int
     {
         if ($this->emulateExecution) {
             return null;
@@ -521,12 +560,16 @@ class ActiveQuery implements ActiveQueryInterface
      * Returns the query result as a scalar value.
      * The value returned will be the specified attribute in the first record of the query results.
      * @param string $attribute name of the attribute to select
-     * @param Connection $db the database connection used to execute the query.
+     * @param ConnectionInterface $db the database connection used to execute the query.
      * If this parameter is not given, the `db` application component will be used.
      * @return string the value of the specified attribute in the first record of the query result.
      * Null is returned if the query result is empty.
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function scalar(string $attribute, $db = null): ?string
+    public function scalar(string $attribute,ConnectionInterface $db = null): ?string
     {
         if ($this->emulateExecution) {
             return null;

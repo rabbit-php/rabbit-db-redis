@@ -1,17 +1,22 @@
 <?php
+declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-use rabbit\activerecord\BaseActiveRecord;
-use rabbit\App;
-use rabbit\core\ObjectFactory;
-use rabbit\exception\InvalidConfigException;
-use rabbit\helper\Inflector;
-use rabbit\helper\StringHelper;
+use DI\DependencyException;
+use DI\NotFoundException;
+use Psr\SimpleCache\InvalidArgumentException;
+use Rabbit\ActiveRecord\BaseActiveRecord;
+use Rabbit\Base\App;
+use Rabbit\Base\Exception\InvalidConfigException;
+use Rabbit\Base\Helper\Inflector;
+use Rabbit\Base\Helper\StringHelper;
+use Rabbit\DB\ConnectionInterface;
+use Throwable;
 
 /**
  * Class ActiveRecord
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class ActiveRecord extends BaseActiveRecord
 {
@@ -24,21 +29,22 @@ class ActiveRecord extends BaseActiveRecord
      * ~~~
      *
      * @param array $attributes attribute values (name-value pairs) to be saved into the table
-     * @param array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
+     * @param string $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
      * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
      * @return int the number of rows updated
+     * @throws InvalidArgumentException
+     * @throws Throwable
      */
-    public static function updateAll($attributes, $condition = null)
+    public static function updateAll(array $attributes, $condition = ''): int
     {
         if (empty($attributes)) {
             return 0;
         }
-        $db = static::getDb();
+        $conn = static::getDb();
         $n = 0;
-        $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        $arr = self::fetchPks($condition);
-        $conn = $db->getConn();
         try {
+            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $arr = self::fetchPks($condition);
             foreach ($arr as $pk) {
                 $newPk = $pk;
                 $pk = static::buildKey($pk);
@@ -54,12 +60,8 @@ class ActiveRecord extends BaseActiveRecord
                         if (is_bool($value)) {
                             $value = (int)$value;
                         }
-                        if ($db instanceof SwooleRedis) {
-                            $setArgs[$attribute] = $value;
-                        } else {
-                            $setArgs[] = $attribute;
-                            $setArgs[] = $value;
-                        }
+                        $setArgs[] = $attribute;
+                        $setArgs[] = $value;
                     } else {
                         $delArgs[] = $attribute;
                     }
@@ -70,50 +72,26 @@ class ActiveRecord extends BaseActiveRecord
                 if ($newPk != $pk) {
                     $conn->executeCommand('MULTI');
                     if (count($setArgs) > 1) {
-                        if ($db instanceof SwooleRedis) {
-                            $hash = array_shift($setArgs);
-                            $conn->executeCommand('HMSET', [$hash, $setArgs]);
-                        } else {
-                            $conn->executeCommand('HMSET', $setArgs);
-                        }
+                        $conn->executeCommand('HMSET', $setArgs);
                     }
                     if (count($delArgs) > 1) {
-                        if ($db instanceof SwooleRedis) {
-                            $hash = array_shift($setArgs);
-                            $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
-                        } else {
-                            $conn->executeCommand('HDEL', $delArgs);
-                        }
+                        $conn->executeCommand('HDEL', $delArgs);
                     }
                     $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
-                    if ($db instanceof SwooleRedis) {
-                        $conn->executeCommand('LREM', [$pkey, $pk, 0]);
-                    } else {
-                        $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-                    }
+                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                     $conn->executeCommand('RENAME', [$key, $newKey]);
                     $conn->executeCommand('EXEC');
                 } else {
                     if (count($setArgs) > 1) {
-                        if ($db instanceof SwooleRedis) {
-                            $hash = array_shift($setArgs);
-                            $conn->executeCommand('HMSET', [$hash, $setArgs]);
-                        } else {
-                            $conn->executeCommand('HMSET', $setArgs);
-                        }
+                        $conn->executeCommand('HMSET', $setArgs);
                     }
                     if (count($delArgs) > 1) {
-                        if ($db instanceof SwooleRedis) {
-                            $hash = array_shift($setArgs);
-                            $conn->executeCommand('HDEL', [$hash, implode(' ', $delArgs)]);
-                        } else {
-                            $conn->executeCommand('HDEL', $delArgs);
-                        }
+                        $conn->executeCommand('HDEL', $delArgs);
                     }
                 }
                 $n++;
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             App::error($exception->getMessage(), 'redis');
             throw $exception;
         } finally {
@@ -125,6 +103,9 @@ class ActiveRecord extends BaseActiveRecord
     /**
      * @param $condition
      * @return array
+     * @throws Throwable
+     * @throws InvalidArgumentException
+     * @throws InvalidConfigException
      */
     private static function fetchPks($condition)
     {
@@ -148,10 +129,12 @@ class ActiveRecord extends BaseActiveRecord
     /**
      * @inheritdoc
      * @return ActiveQuery the newly created [[ActiveQuery]] instance.
+     * @throws DependencyException
+     * @throws NotFoundException
      */
     public static function find(): ActiveQuery
     {
-        return ObjectFactory::createObject(ActiveQuery::class, ['modelClass' => get_called_class()], false);
+        return create(ActiveQuery::class, ['modelClass' => get_called_class()], false);
     }
 
     /**
@@ -164,21 +147,22 @@ class ActiveRecord extends BaseActiveRecord
      *
      * @param array $counters the counters to be updated (attribute name => increment value).
      * Use negative values if you want to decrement the counters.
-     * @param array $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
+     * @param string $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
      * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
      * @return int the number of rows updated
+     * @throws InvalidArgumentException
+     * @throws Throwable
      */
-    public static function updateAllCounters($counters, $condition = null)
+    public static function updateAllCounters(array $counters, $condition = ''): int
     {
         if (empty($counters)) {
             return 0;
         }
-        $db = static::getDb();
+        $conn = static::getDb();
         $n = 0;
-        $pkey = $db->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-        $arr = self::fetchPks($condition);
-        $conn = $db->getConn();
         try {
+            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $arr = self::fetchPks($condition);
             foreach ($arr as $pk) {
                 $key = $pkey . ':a:' . static::buildKey($pk);
                 foreach ($counters as $attribute => $value) {
@@ -186,7 +170,7 @@ class ActiveRecord extends BaseActiveRecord
                 }
                 $n++;
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             App::error($exception->getMessage(), 'redis');
             throw $exception;
         } finally {
@@ -208,33 +192,31 @@ class ActiveRecord extends BaseActiveRecord
      * @param array $condition the conditions that will be put in the WHERE part of the DELETE SQL.
      * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
      * @return int the number of rows deleted
+     * @throws InvalidArgumentException
+     * @throws InvalidConfigException
+     * @throws Throwable
      */
-    public static function deleteAll($condition = null)
+    public static function deleteAll($condition = null): int
     {
         $pks = self::fetchPks($condition);
         if (empty($pks)) {
             return 0;
         }
 
-        $db = static::getDb();
-        $conn = $db->getConn();
+        $conn = static::getDb();
         try {
             $attributeKeys = [];
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $conn->executeCommand('MULTI');
             foreach ($pks as $pk) {
                 $pk = static::buildKey($pk);
-                if ($db instanceof SwooleRedis) {
-                    $conn->executeCommand('LREM', [$pkey, $pk, 0]);
-                } else {
-                    $conn->executeCommand('LREM', [$pkey, 0, $pk]);
-                }
+                $conn->executeCommand('LREM', [$pkey, 0, $pk]);
 
                 $attributeKeys[] = $pkey . ':a:' . $pk;
             }
             $conn->executeCommand('DEL', $attributeKeys);
             $result = $conn->executeCommand('EXEC');
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             App::error($exception->getMessage(), 'redis');
             throw $exception;
         } finally {
@@ -248,6 +230,7 @@ class ActiveRecord extends BaseActiveRecord
      * Returns the list of all attribute names of the model.
      * This method must be overridden by child classes to define available attributes.
      * @return array list of attribute names.
+     * @throws InvalidConfigException
      */
     public function attributes(): array
     {
@@ -255,15 +238,17 @@ class ActiveRecord extends BaseActiveRecord
     }
 
     /**
-     * @inheritdoc
+     * @param bool $runValidation
+     * @param array|null $attributes
+     * @return bool
+     * @throws Throwable
      */
-    public function insert($runValidation = true, $attributes = null)
+    public function insert(bool $runValidation = true, array $attributes = null): bool
     {
         if ($runValidation && !$this->validate($attributes)) {
             return false;
         }
-        $db = static::getDb();
-        $conn = $db->getConn();
+        $conn = static::getDb();
         try {
             $values = $this->getDirtyAttributes($attributes);
             $pk = [];
@@ -295,24 +280,15 @@ class ActiveRecord extends BaseActiveRecord
                     if (is_bool($value)) {
                         $value = (int)$value;
                     }
-                    if ($db instanceof SwooleRedis) {
-                        $setArgs[$attribute] = $value;
-                    } else {
-                        $setArgs[] = $attribute;
-                        $setArgs[] = $value;
-                    }
+                    $setArgs[] = $attribute;
+                    $setArgs[] = $value;
                 }
             }
 
             if (count($setArgs) > 1) {
-                if ($db instanceof SwooleRedis) {
-                    $hash = array_shift($setArgs);
-                    $conn->executeCommand('HMSET', [$hash, $setArgs]);
-                } else {
-                    $conn->executeCommand('HMSET', $setArgs);
-                }
+                $conn->executeCommand('HMSET', $setArgs);
             }
-        } catch (\Throwable $exception) {
+        } catch (Throwable $exception) {
             App::error($exception, 'redis');
             throw $exception;
         } finally {
@@ -320,7 +296,6 @@ class ActiveRecord extends BaseActiveRecord
         }
 
 
-        $changedAttributes = array_fill_keys(array_keys($values), null);
         $this->setOldAttributes($values);
 
         return true;
@@ -330,11 +305,12 @@ class ActiveRecord extends BaseActiveRecord
      * Returns the database connection used by this AR class.
      * By default, the "redis" application component is used as the database connection.
      * You may override this method if you want to use a different database connection.
-     * @return Connection the database connection used by this AR class.
+     * @return ConnectionInterface the database connection used by this AR class.
+     * @throws Throwable
      */
-    public static function getDb()
+    public static function getDb(): ConnectionInterface
     {
-        return getDI('redis');
+        return getDI('redis')->get();
     }
 
     /**
@@ -368,7 +344,7 @@ class ActiveRecord extends BaseActiveRecord
      * @param mixed $key the key to be normalized
      * @return string the generated key
      */
-    public static function buildKey($key)
+    public static function buildKey($key): string
     {
         if (is_numeric($key)) {
             return $key;

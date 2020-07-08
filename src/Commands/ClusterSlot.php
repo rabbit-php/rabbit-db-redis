@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis\Commands;
+namespace Rabbit\DB\Redis\Commands;
 
 /**
  * Trait ClusterSlot
- * @package rabbit\db\redis\Commands
+ * @package Rabbit\DB\Redis\Commands
  */
 trait ClusterSlot
 {

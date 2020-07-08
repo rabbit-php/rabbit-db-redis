@@ -1,12 +1,13 @@
 <?php
+declare(strict_types=1);
 
+namespace Rabbit\DB\Redis;
 
-namespace rabbit\db\redis;
-
-use rabbit\App;
+use Rabbit\Base\App;
 use rabbit\db\redis\pool\RedisPool;
 use rabbit\pool\ConnectionInterface;
 use rabbit\pool\PoolInterface;
+use Throwable;
 
 /**
  * Class Redis
@@ -486,8 +487,9 @@ class Redis
 
     /**
      * @return ConnectionInterface
+     * @throws Throwable
      */
-    public function getConn(): ConnectionInterface
+    public function get(): ConnectionInterface
     {
         return $this->pool->get();
     }
@@ -504,27 +506,27 @@ class Redis
      * @param $method
      * @param $arguments
      * @return mixed
+     * @throws Throwable
      */
     public function __call($method, $arguments)
     {
         /* @var Connection $client */
         $client = $this->pool->get();
         try {
-            $result = $client->$method(...$arguments);
-        } catch (\Throwable $exception) {
+            return $client->$method(...$arguments);
+        } catch (Throwable $exception) {
             App::error($exception->getMessage(), 'redis');
             throw $exception;
         } finally {
             $client->release(true);
         }
-        return $result;
     }
 
     /**
      * @param array $config
      * @param string $type
      * @return array
-     * @throws \Exception
+     * @throws Throwable
      */
     public static function getCurrent(array $config, string $type): array
     {

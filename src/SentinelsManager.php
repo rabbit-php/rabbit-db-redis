@@ -1,10 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-use rabbit\App;
-use rabbit\core\Exception;
+use Co\Channel;
+use Exception;
+use Rabbit\Base\App;
+use Throwable;
 
 /**
  * Class SentinelsManager
@@ -13,23 +15,17 @@ use rabbit\core\Exception;
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
+    /** @var Channel */
+    protected Channel $channel;
     /** @var int */
-    protected $size;
-    /** @var \SplQueue */
-    protected $queue;
-    /** @var int */
-    protected $current = 0;
-    /** @var \SplQueue */
-    protected $wait;
+    protected int $current = 0;
 
     /**
      * SentinelsManager constructor.
-     * @throws \Exception
      */
     public function __construct()
     {
-        $this->queue = new \SplQueue();
-        $this->wait = new \SplQueue();
+        $this->channel = new Channel();
     }
 
     /**
@@ -37,11 +33,12 @@ class SentinelsManager
      * @param string $type
      * @param string $masterName
      * @return mixed
-     * @throws Exception
+     * @throws Throwable
      */
     public function discover(array $sentinels, string $type, string $masterName = 'mymaster')
     {
-        $this->size = count($sentinels);
+        $size = count($sentinels);
+        $this->channel->capacity = $size;
         foreach ($sentinels as $sentinel) {
             if (is_scalar($sentinel)) {
                 $sentinel = [
@@ -50,31 +47,35 @@ class SentinelsManager
             }
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
 
-            if (!$this->queue->isEmpty()) {
-                $connection = $this->queue->shift();
-            } elseif ($this->current >= $this->size) {
-                $this->wait->push(\Co::getCid());
-                \Co::yield();
-                $connection = $this->queue->shift();
+            if ($this->current >= $size) {
+                $connection = $this->channel->pop();
             } else {
                 try {
                     $this->current++;
                     $connection = new SentinelConnection();
-                    $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : null;
+                    $connection->hostname = isset($sentinel['hostname']) ? $sentinel['hostname'] : 'localhost';
                     $connection->masterName = $masterName;
                     if (isset($sentinel['port'])) {
                         $connection->port = $sentinel['port'];
                     }
                     $connection->connectionTimeout = isset($sentinel['connectionTimeout']) ? $sentinel['connectionTimeout'] : null;
                     $connection->unixSocket = isset($sentinel['unixSocket']) ? $sentinel['unixSocket'] : null;
-                } catch (\Throwable $exception) {
+                } catch (Throwable $exception) {
                     $this->current--;
                     throw new Exception("can not open sentinel, $key");
                 }
 
             }
             $method = 'get' . ucfirst($type);
-            $res = $connection->$method();
+            try {
+                $res = $connection->$method();
+            } finally {
+                if ($this->channel->length() < $size) {
+                    $this->channel->push($connection);
+                } else {
+                    $this->current--;
+                }
+            }
             $r = [];
             if (!is_array($res[0])) {
                 $res = [$res];
@@ -90,15 +91,6 @@ class SentinelsManager
             } else {
                 $connectionName = $connection->unixSocket;
             }
-            if ($this->queue->count() < $this->size) {
-                $this->queue->push($connection);
-            } else {
-                $this->current--;
-            }
-            if ($this->wait->count() > 0) {
-                $cid = $this->wait->shift();
-                \Co::resume($cid);
-            }
             if ($r) {
                 App::info("Sentinel @{$connectionName} gave $type addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
                 return [$r['ip'], $r['port']];
@@ -106,6 +98,6 @@ class SentinelsManager
                 App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
             }
         }
-        throw new \Exception("$key Master could not be discovered");
+        throw new Exception("Master could not be discovered");
     }
 }

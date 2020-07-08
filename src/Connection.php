@@ -1,15 +1,17 @@
 <?php
+declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-use rabbit\App;
-use rabbit\db\Exception;
-use rabbit\exception\NotSupportedException;
-use rabbit\helper\ArrayHelper;
-use rabbit\helper\Inflector;
-use rabbit\pool\AbstractConnection;
-use rabbit\pool\PoolManager;
+use Rabbit\Base\App;
+use Rabbit\Base\Core\Exception;
+use Rabbit\Base\Exception\NotSupportedException;
+use Rabbit\Base\Helper\ArrayHelper;
+use Rabbit\Base\Helper\Inflector;
+use Rabbit\Pool\AbstractConnection;
+use Rabbit\Pool\PoolManager;
 use Swoole\Coroutine\System;
+use Throwable;
 
 /**
  * The redis connection class is used to establish a connection to a [redis](http://redis.io/) server.
@@ -237,36 +239,31 @@ class Connection extends AbstractConnection
      * @var string the hostname or ip address to use for connecting to the redis server. Defaults to 'localhost'.
      * If [[unixSocket]] is specified, hostname and [[port]] will be ignored.
      */
-    private $hostname = 'localhost';
+    private string $hostname = 'localhost';
     /**
      * @var integer the port to use for connecting to the redis server. Default port is 6379.
      * If [[unixSocket]] is specified, [[hostname]] and port will be ignored.
      */
-    private $port = 6379;
+    private int $port = 6379;
     /**
      * @var string the unix socket path (e.g. `/var/run/redis/redis.sock`) to use for connecting to the redis server.
      * This can be used instead of [[hostname]] and [[port]] to connect to the server using a unix socket.
      * If a unix socket path is specified, [[hostname]] and [[port]] will be ignored.
      */
-    private $unixSocket;
-    /**
-     * @var string the password for establishing DB connection. Defaults to null meaning no AUTH command is sent.
-     * See http://redis.io/commands/auth
-     */
-    private $password;
+    private ?string $unixSocket = null;
     /**
      * @var integer the redis database to use. This is an integer value starting from 0. Defaults to 0.
      * Since version 2.0.6 you can disable the SELECT command sent after connection by setting this property to `null`.
      */
-    private $database = 0;
+    private int $database = 0;
     /**
      * @var float timeout to use for connection to redis. If not set the timeout set in php.ini will be used: `ini_get("default_socket_timeout")`.
      */
-    private $connectionTimeout = null;
+    private ?float $connectionTimeout = null;
     /**
      * @var float timeout to use for redis socket when reading and writing data. If not set the php default value will be used.
      */
-    private $dataTimeout = null;
+    private ?float $dataTimeout = null;
     /**
      * @var integer Bitmask field which may be set to any combination of connection flags passed to [stream_socket_client()](http://php.net/manual/en/function.stream-socket-client.php).
      * Currently the select of connection flags is limited to `STREAM_CLIENT_CONNECT` (default), `STREAM_CLIENT_ASYNC_CONNECT` and `STREAM_CLIENT_PERSISTENT`.
@@ -286,7 +283,7 @@ class Connection extends AbstractConnection
      * @see http://php.net/manual/en/function.stream-socket-client.php
      * @since 2.0.5
      */
-    private $socketClientFlags = STREAM_CLIENT_CONNECT;
+    private int $socketClientFlags = STREAM_CLIENT_CONNECT;
 
     /**
      * @var resource redis socket connection
@@ -297,7 +294,7 @@ class Connection extends AbstractConnection
      */
     private $_socketSlave = null;
     /** @var bool */
-    private $separate = false;
+    private bool $separate = false;
 
     /**
      * Closes the connection when this component is being serialized.
@@ -312,6 +309,7 @@ class Connection extends AbstractConnection
     /**
      * @param bool $quit
      * @throws Exception
+     * @throws Throwable
      */
     public function close(bool $quit = true)
     {
@@ -359,7 +357,7 @@ class Connection extends AbstractConnection
      *
      * See [redis protocol description](http://redis.io/topics/protocol)
      * for details on the mentioned reply types.
-     * @throws Exception for commands that return [error reply](http://redis.io/topics/protocol#error-reply).
+     * @throws Throwable for commands that return [error reply](http://redis.io/topics/protocol#error-reply).
      */
     public function executeCommand(string $name, array $params = [])
     {
@@ -383,7 +381,7 @@ class Connection extends AbstractConnection
         while ($retrys--) {
             try {
                 $data = $this->sendCommandInternal($command, $params, $type);
-                if ($name === 'HGETALL' || ($name === 'CONFIG' && is_array($data))) {
+                if (($name === 'HGETALL' || $name === 'CONFIG') && is_array($data)) {
                     return Redis::parseData($data);
                 }
                 return $data;
@@ -421,7 +419,7 @@ class Connection extends AbstractConnection
     /**
      * Establishes a DB connection.
      * It does nothing if a DB connection has already been established.
-     * @throws Exception if connection fails
+     * @throws Throwable if connection fails
      */
     public function open()
     {
@@ -432,7 +430,7 @@ class Connection extends AbstractConnection
         $this->connectionTimeout = $this->dataTimeout = $pool->getTimeout();
         $address = $pool->getConnectionAddress();
         $config = $this->parseUri($address);
-        $this->separate = ArrayHelper::remove($config, 'separate', false);
+        $this->separate = (bool)ArrayHelper::remove($config, 'separate', false);
         $this->makeConn($config, '_socket');
         if ($this->separate && $this->_socketSlave === null) {
             $this->makeConn($config, '_socketSlave');
@@ -442,14 +440,14 @@ class Connection extends AbstractConnection
     /**
      * @param array $config
      * @param string $type
-     * @throws Exception
+     * @throws Throwable
      */
     private function makeConn(array $config, string $type): void
     {
         [$this->hostname, $this->port] = Redis::getCurrent($config, $type === '_socket' ? 'master' : 'slave');
 
         $this->database = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
-        $this->password = isset($config['password']) ? $config['password'] : null;
+        $password = isset($config['password']) ? $config['password'] : null;
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
         App::debug('Opening redis DB connection: ' . $connection, 'redis');
         $this->$type = @stream_socket_client(
@@ -467,8 +465,8 @@ class Connection extends AbstractConnection
                     (int)(($this->dataTimeout - $timeout) * 1000000)
                 );
             }
-            if ($this->password !== null) {
-                $this->executeCommand('AUTH', [$this->password]);
+            if ($password !== null) {
+                $this->executeCommand('AUTH', [$password]);
             }
             if ($this->database !== null) {
                 $this->executeCommand('SELECT', [$this->database]);
@@ -484,7 +482,7 @@ class Connection extends AbstractConnection
     /**
      * @param string $uri
      * @return array
-     * @throws \rabbit\core\Exception
+     * @throws Exception
      */
     protected function parseUri(string $uri): array
     {
@@ -528,7 +526,7 @@ class Connection extends AbstractConnection
 
     /**
      * @param string $command
-     * @param string $type
+     * @param string $socket
      * @return array|bool|string|null
      * @throws Exception
      * @throws SocketException
@@ -591,6 +589,8 @@ class Connection extends AbstractConnection
      * @param string $name name of the missing method to execute
      * @param array $params method call arguments
      * @return mixed
+     * @throws NotSupportedException
+     * @throws Throwable
      */
     public function __call($name, $params)
     {
@@ -601,13 +601,16 @@ class Connection extends AbstractConnection
         throw new NotSupportedException("Redis not support cmd $name");
     }
 
+    /**
+     * @throws Throwable
+     */
     public function createConnection(): void
     {
         $this->open();
     }
 
     /**
-     *
+     * @throws Throwable
      */
     public function reconnect(): void
     {

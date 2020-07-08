@@ -1,13 +1,13 @@
 <?php
+declare(strict_types=1);
 
+namespace Rabbit\DB\Redis;
 
-namespace rabbit\db\redis;
-
-use rabbit\db\Exception;
+use Rabbit\Base\Core\Exception;
 
 /**
  * Class SocketException
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class SocketException extends Exception
 {

@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis\Commands;
+namespace Rabbit\DB\Redis\Commands;
 
 use Predis\Command\TransactionExec;
 
 /**
  * Class EXEC
- * @package rabbit\db\redis\ExtCommand
+ * @package Rabbit\DB\Redis\Commands
  */
 class EXEC extends TransactionExec
 {

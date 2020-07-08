@@ -1,16 +1,11 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Administrator
- * Date: 2018/10/26
- * Time: 23:57
- */
+declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
 use Psr\SimpleCache\CacheInterface;
-use rabbit\cache\AbstractCache;
-use rabbit\core\ObjectFactory;
+use Rabbit\Cache\AbstractCache;
+use Throwable;
 
 /**
  * Class Cache
@@ -19,16 +14,16 @@ use rabbit\core\ObjectFactory;
 class Cache extends AbstractCache implements CacheInterface
 {
     /** @var Redis */
-    private $client;
+    private ?Redis $client;
 
     /**
      * Cache constructor.
-     * @throws \Exception
+     * @throws Throwable
      */
     public function __construct()
     {
         parent::__construct();
-        $this->client = ObjectFactory::get('redis');
+        $this->client = getDI('redis');
     }
 
     /**

@@ -1,30 +1,30 @@
 <?php
+declare(strict_types=1);
 
+namespace Rabbit\DB\Redis\Pool;
 
-namespace rabbit\db\redis\pool;
-
-use rabbit\pool\PoolProperties;
+use Rabbit\Pool\PoolProperties;
 
 /**
  * Class RedisPoolConfig
- * @package rabbit\db\redis\pool
+ * @package Rabbit\DB\Redis\Pool
  */
 class RedisPoolConfig extends PoolProperties
 {
     /**
      * @var int
      */
-    protected $db = 0;
+    protected int $db = 0;
 
     /**
      * @var string
      */
-    protected $prefix = '';
+    protected string $prefix = '';
 
     /**
      * @var bool
      */
-    protected $isSerialize = false;
+    protected bool $isSerialize = false;
 
     /**
      * @return bool

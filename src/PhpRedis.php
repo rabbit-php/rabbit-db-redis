@@ -1,14 +1,15 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
 
 use Co\System;
-use rabbit\db\Exception;
-use rabbit\helper\ArrayHelper;
-use rabbit\pool\AbstractConnection;
-use rabbit\pool\PoolManager;
+use Rabbit\Base\Core\Exception;
+use Rabbit\Base\Helper\ArrayHelper;
+use Rabbit\Pool\AbstractConnection;
+use Rabbit\Pool\PoolManager;
+use RedisClusterException;
 
 /**
  * Class PhpRedis
@@ -18,13 +19,15 @@ class PhpRedis extends AbstractConnection
 {
     use ClusterTrait;
 
-    /** @var \RedisCluster|\Redis */
-    private $conn;
+    /** @var \Redis */
+    private \Redis $conn;
+    /** @var \RedisCluster */
+    private \RedisCluster $connCluster;
     /** @var \RedisSentinel */
-    private $sentinel;
+    private \RedisSentinel $sentinel;
 
     /**
-     * @throws \rabbit\core\Exception
+     * @throws RedisClusterException|Exception
      */
     public function createConnection(): void
     {
@@ -35,7 +38,7 @@ class PhpRedis extends AbstractConnection
         $client = ArrayHelper::remove($config, 'client', 'predis');
         if (isset($config['cluster'])) {
             $this->cluster = true;
-            $this->conn = new \RedisCluster(NULL, $address, $pool->getTimeout(), $pool->getTimeout(), false, ArrayHelper::getValue($config, 'parameters.password', ""));
+            $this->connCluster = new \RedisCluster(NULL, $address, $pool->getTimeout(), $pool->getTimeout(), false, ArrayHelper::getValue($config, 'parameters.password', ""));
             if (isset($config['separate'])) {
                 $this->conn->setOption(\RedisCluster::OPT_SLAVE_FAILOVER, \RedisCluster::FAILOVER_DISTRIBUTE_SLAVES);
             }
@@ -52,20 +55,20 @@ class PhpRedis extends AbstractConnection
                     $this->conn->connect($host, (int)$port);
                     return;
                 }
-                $retry > 0 && System::sleep($pool->getTimeout());
+                $retrys > 0 && System::sleep($pool->getTimeout());
             }
-            throw new Exception("Connect to $host:$port failed!");
+            throw new Exception("Connect to redis failed!");
         } else {
             $this->conn = new \Redis();
-            $retry = $pool->getPoolConfig()->getMaxRetry();
             $this->conn->connect($parseAry['host'], (int)$parseAry['port'], $pool->getTimeout());
         }
     }
 
     /**
      * @param string $uri
+     * @param array $parseAry
      * @return array
-     * @throws \rabbit\core\Exception
+     * @throws Exception
      */
     protected function parseUri(string $uri, array &$parseAry): array
     {
@@ -91,9 +94,16 @@ class PhpRedis extends AbstractConnection
      */
     public function executeCommand(string $name, array $args = [])
     {
+        if ($this->cluster) {
+            return $this->connCluster->$name(...$args);
+        }
         return $this->conn->$name(...$args);
     }
 
+    /**
+     * @throws Exception
+     * @throws RedisClusterException
+     */
     public function reconnect(): void
     {
         $this->createConnection();

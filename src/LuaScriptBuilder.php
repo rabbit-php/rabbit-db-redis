@@ -1,15 +1,13 @@
 <?php
+declare(strict_types=1);
+namespace Rabbit\DB\Redis;
 
-namespace rabbit\db\redis;
 
-use rabbit\db\Exception;
-use rabbit\db\Expression;
-use rabbit\exception\InvalidArgumentException;
-use rabbit\exception\NotSupportedException;
+use Throwable;
 
 /**
  * Class LuaScriptBuilder
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
 class LuaScriptBuilder
 {
@@ -17,6 +15,7 @@ class LuaScriptBuilder
      * Builds a Lua script for finding a list of records
      * @param ActiveQuery $query the query used to build the script
      * @return string
+     * @throws Throwable
      */
     public function buildAll(ActiveQuery $query): string
     {

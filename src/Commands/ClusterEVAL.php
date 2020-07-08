@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace rabbit\db\redis\Commands;
+namespace Rabbit\DB\Redis\Commands;
 
 use Predis\Command\ServerEval;
 
 /**
  * Class ClusterEVAL
- * @package rabbit\db\redis\Commands
+ * @package Rabbit\DB\Redis\Commands
  */
 class ClusterEVAL extends ServerEval
 {

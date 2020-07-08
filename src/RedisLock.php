@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace rabbit\db\redis;
+namespace Rabbit\DB\Redis;
 
-
-use rabbit\helper\ExceptionHelper;
+use Closure;
+use Rabbit\Base\Helper\ExceptionHelper;
 use rabbit\memory\atomic\LockInterface;
+use Throwable;
 
 /**
  * Class RedisLock
@@ -14,12 +15,12 @@ use rabbit\memory\atomic\LockInterface;
 class RedisLock implements LockInterface
 {
     /** @var Redis */
-    protected $redis;
+    protected ?Redis $redis;
 
     /**
      * RedisLock constructor.
      * @param Redis|null $redis
-     * @throws \Exception
+     * @throws Throwable
      */
     public function __construct(Redis $redis = null)
     {
@@ -27,23 +28,22 @@ class RedisLock implements LockInterface
     }
 
     /**
-     * @param \Closure $function
+     * @param Closure $function
      * @param string $name
      * @param float|int $timeout
      * @param array $params
      * @return bool|mixed
-     * @throws \Exception
+     * @throws Throwable
      */
-    public function __invoke(\Closure $function, string $name = '', float $timeout = 600, array $params = [])
+    public function __invoke(Closure $function, string $name = '', float $timeout = 600, array $params = [])
     {
         try {
             $name = empty($name) ? uniqid() : $name;
             if ($this->redis->set($name, true, ['NX', 'EX' => $timeout]) === false) {
                 return false;
             }
-            $result = call_user_func($function, ...$params);
-            return $result;
-        } catch (\Throwable $throwable) {
+            return call_user_func($function, ...$params);
+        } catch (Throwable $throwable) {
             print_r(ExceptionHelper::convertExceptionToArray($throwable));
         } finally {
             $this->redis->del($name);
