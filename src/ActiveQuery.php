@@ -11,7 +11,7 @@ use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Exception\NotSupportedException;
 use Rabbit\DB\QueryTrait;
 use Rabbit\DB\QueryTraitExt;
-use Rabbit\DB\ConnectionInterface;
+use Rabbit\Pool\ConnectionInterface;
 use ReflectionException;
 use Throwable;
 
@@ -92,7 +92,7 @@ class ActiveQuery implements ActiveQueryInterface
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    protected function executeScript(ConnectionInterface $db, string $type, string $columnName = null)
+    protected function executeScript(?ConnectionInterface $db, string $type, string $columnName = null)
     {
         if ($this->primaryModel !== null) {
             // lazy loading

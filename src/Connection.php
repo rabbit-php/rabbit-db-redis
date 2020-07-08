@@ -372,7 +372,7 @@ class Connection extends AbstractConnection
         $params = array_merge(explode(' ', $name), $tmp);
         $command = '*' . count($params) . "\r\n";
         foreach ($params as $arg) {
-            $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
+            $command .= '$' . mb_strlen((string)$arg, '8bit') . "\r\n" . $arg . "\r\n";
         }
         App::debug("Executing Redis Command: {$name}", 'redis');
         $this->open();
@@ -475,7 +475,7 @@ class Connection extends AbstractConnection
             $this->$type = null;
             App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
             $message = getDI('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
-            throw new Exception($message, $errorDescription, $errorNumber);
+            throw new Exception($message . ';' . $errorDescription, $errorNumber);
         }
     }
 

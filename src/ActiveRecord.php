@@ -11,7 +11,7 @@ use Rabbit\Base\App;
 use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\StringHelper;
-use Rabbit\DB\ConnectionInterface;
+use Rabbit\Pool\ConnectionInterface;
 use Throwable;
 
 /**
@@ -223,7 +223,7 @@ class ActiveRecord extends BaseActiveRecord
             $conn->release(true);
         }
 
-        return end($result);
+        return (int)end($result);
     }
 
     /**
@@ -347,7 +347,7 @@ class ActiveRecord extends BaseActiveRecord
     public static function buildKey($key): string
     {
         if (is_numeric($key)) {
-            return $key;
+            return (string)$key;
         } elseif (is_string($key)) {
             return ctype_alnum($key) && StringHelper::byteLength($key) <= 32 ? $key : md5($key);
         } elseif (is_array($key)) {
