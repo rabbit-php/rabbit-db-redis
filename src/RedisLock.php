@@ -10,9 +10,9 @@ use Throwable;
 
 /**
  * Class RedisLock
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
-class RedisLock implements LockInterface
+class RedisLock implements \Rabbit\Base\Contract\LockInterface
 {
     /** @var Redis */
     protected ?Redis $redis;
@@ -35,7 +35,7 @@ class RedisLock implements LockInterface
      * @return bool|mixed
      * @throws Throwable
      */
-    public function __invoke(Closure $function, string $name = '', float $timeout = 600, array $params = [])
+    public function __invoke(Closure $function, string $name = '', float $timeout = 600)
     {
         try {
             $name = empty($name) ? uniqid() : $name;
