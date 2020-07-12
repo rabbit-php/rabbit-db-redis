@@ -39,13 +39,7 @@ class Predis extends AbstractConnection
             $address = count($address) === 1 ? $currAddr : $address;
         }
         $this->conn = new Client($address, $config);
-        if (isset($config['cluster'])) {
-            $this->cluster = true;
-            $profile = $this->conn->getProfile();
-            $profile->defineCommand('MULTI', MUTIL::class);
-            $profile->defineCommand('EXEC', EXEC::class);
-            $profile->defineCommand('EVAL', ClusterEVAL::class);
-        }
+        $this->cluster = (bool)ArrayHelper::getValue($config, 'cluster', false);
     }
 
     /**

@@ -43,7 +43,8 @@ class ActiveRecord extends BaseActiveRecord
         $conn = static::getDb();
         $n = 0;
         try {
-            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $isCluster = $conn->getCluster();
+            $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $arr = self::fetchPks($condition);
             foreach ($arr as $pk) {
                 $newPk = $pk;
@@ -70,7 +71,7 @@ class ActiveRecord extends BaseActiveRecord
                 $newKey = $pkey . ':a:' . $newPk;
                 // rename index if pk changed
                 if ($newPk != $pk) {
-                    $conn->executeCommand('MULTI');
+                    !$isCluster && $conn->executeCommand('MULTI');
                     if (count($setArgs) > 1) {
                         $conn->executeCommand('HMSET', $setArgs);
                     }
@@ -80,7 +81,7 @@ class ActiveRecord extends BaseActiveRecord
                     $conn->executeCommand('LINSERT', [$pkey, 'AFTER', $pk, $newPk]);
                     $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                     $conn->executeCommand('RENAME', [$key, $newKey]);
-                    $conn->executeCommand('EXEC');
+                    !$isCluster && $conn->executeCommand('EXEC');
                 } else {
                     if (count($setArgs) > 1) {
                         $conn->executeCommand('HMSET', $setArgs);
@@ -206,16 +207,17 @@ class ActiveRecord extends BaseActiveRecord
         $conn = static::getDb();
         try {
             $attributeKeys = [];
-            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-            $conn->executeCommand('MULTI');
+            $isCluster = $conn->getCluster();
+            $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            !$isCluster && $conn->executeCommand('MULTI');
             foreach ($pks as $pk) {
                 $pk = static::buildKey($pk);
                 $conn->executeCommand('LREM', [$pkey, 0, $pk]);
 
                 $attributeKeys[] = $pkey . ':a:' . $pk;
             }
-            $conn->executeCommand('DEL', $attributeKeys);
-            $result = $conn->executeCommand('EXEC');
+            $result = $conn->executeCommand('DEL', $attributeKeys);
+            !$isCluster && ($result = $conn->executeCommand('EXEC'));
         } catch (Throwable $exception) {
             App::error($exception->getMessage(), 'redis');
             throw $exception;
