@@ -31,7 +31,7 @@ class MakeConnection
     ): void
     {
         /** @var BaseManager $manager */
-        $manager = getDI('redis.manager');
+        $manager = getDI('redis');
         if (!$manager->has($name)) {
             [
                 $min,

@@ -24,7 +24,7 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
      */
     public function __construct(Redis $redis = null)
     {
-        $this->redis = $redis ?? getDI('redis');
+        $this->redis = $redis ?? getDI('redis')->get();
     }
 
     /**

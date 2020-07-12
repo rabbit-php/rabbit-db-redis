@@ -4,23 +4,24 @@ declare(strict_types=1);
 namespace Rabbit\DB\Redis;
 
 use Rabbit\Base\App;
-use rabbit\db\redis\pool\RedisPool;
-use rabbit\pool\ConnectionInterface;
-use rabbit\pool\PoolInterface;
+use Rabbit\Base\Exception\NotSupportedException;
+use Rabbit\DB\Redis\Pool\RedisPool;
+use Rabbit\Pool\ConnectionInterface;
+use Rabbit\Pool\PoolInterface;
 use Throwable;
 
 /**
  * Class Redis
- * @package rabbit\db\redis
+ * @package Rabbit\DB\Redis
  */
-class Redis
+class Redis implements ConnectionInterface
 {
     const CONN_MASTER = 'master';
     const CONN_SLAVE = 'slave';
     /**
      * @var PoolInterface
      */
-    protected $pool = '';
+    protected PoolInterface $pool;
 
     const REDIS_COMMAND = [
         'APPEND',
@@ -478,9 +479,9 @@ class Redis
 
     /**
      * Redis constructor.
-     * @param RedisPool $pool
+     * @param PoolInterface $pool
      */
-    public function __construct(RedisPool $pool)
+    public function __construct(PoolInterface $pool)
     {
         $this->pool = $pool;
     }
@@ -573,4 +574,31 @@ class Redis
         }
         return $row;
     }
+
+    /**
+     * @throws NotSupportedException
+     */
+    public function createConnection(): void
+    {
+        throw new NotSupportedException("Redis Manager not support " . __METHOD__);
+    }
+
+    /**
+     * @throws NotSupportedException
+     */
+    public function reconnect(): void
+    {
+        throw new NotSupportedException("Redis Manager not support " . __METHOD__);
+    }
+
+    /**
+     * @param bool $release
+     * @throws NotSupportedException
+     */
+    public function release($release = false): void
+    {
+        throw new NotSupportedException("Redis Manager not support " . __METHOD__);
+    }
+
+
 }

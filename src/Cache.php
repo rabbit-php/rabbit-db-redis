@@ -23,7 +23,7 @@ class Cache extends AbstractCache implements CacheInterface
     public function __construct()
     {
         parent::__construct();
-        $this->client = getDI('redis');
+        $this->client = getDI('redis')->get();
     }
 
     /**

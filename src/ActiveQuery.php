@@ -26,6 +26,8 @@ class ActiveQuery implements ActiveQueryInterface
     use ActiveQueryTrait;
     use ActiveRelationTrait;
 
+    public ?ConnectionInterface $db = null;
+
     /**
      * Constructor.
      * @param string $modelClass the model class associated with this query
@@ -34,25 +36,24 @@ class ActiveQuery implements ActiveQueryInterface
     public function __construct(string $modelClass, array $config = [])
     {
         $this->modelClass = $modelClass;
+        $this->db = $modelClass::getDb();
     }
 
     /**
-     * Executes the query and returns all results as an array.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return array|ActiveRecord[] the query results. If the query results in nothing, an empty array will be returned.
+     * @return array
      * @throws InvalidConfigException
+     * @throws ReflectionException
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function all(ConnectionInterface $db = null): array
+    public function all(): array
     {
         if ($this->emulateExecution) {
             return [];
         }
 
         // TODO add support for orderBy
-        $rows = $this->executeScript($db, 'All');
+        $rows = $this->executeScript('All');
         if (empty($rows)) {
             return [];
         }
@@ -81,18 +82,17 @@ class ActiveQuery implements ActiveQueryInterface
     }
 
     /**
-     * Executes a script created by [[LuaScriptBuilder]]
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @param string $type the type of the script to generate
-     * @param string $columnName
-     * @return array|bool|null|string
+     * @param string $type
+     * @param string|null $columnName
+     * @return array|bool|float|int|mixed|string|null
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    protected function executeScript(?ConnectionInterface $db, string $type, string $columnName = null)
+    protected function executeScript(string $type, string $columnName = null)
     {
         if ($this->primaryModel !== null) {
             // lazy loading
@@ -121,22 +121,18 @@ class ActiveQuery implements ActiveQueryInterface
         /* @var $modelClass ActiveRecord */
         $modelClass = $this->modelClass;
 
-        if ($db === null) {
-            $db = $modelClass::getDb();
-        }
-
         // find by primary key if possible. This is much faster than scanning all records
         if (is_array($this->where) && (
                 !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
                 isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1])
             )) {
-            return $this->findByPk($db, $type, $columnName);
+            return $this->findByPk($type, $columnName);
         }
 
         $method = 'build' . $type;
         $script = create(LuaScriptBuilder::class)->$method($this, $columnName);
 
-        $data = $db->executeCommand('EVAL', [$script, 0]);
+        $data = $this->db->executeCommand('EVAL', [$script, 0]);
         if (is_array($data)) {
             switch ($type) {
                 case 'All':
@@ -229,25 +225,20 @@ class ActiveQuery implements ActiveQueryInterface
     }
 
     /**
-     * Executes the query and returns a single row of result.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return ActiveRecord|array|null a single row of query result. Depending on the setting of [[asArray]],
-     * the query result may be either an array or an ActiveRecord object. Null will be returned
-     * if the query results in nothing.
+     * @return array|bool|float|int|mixed|ActiveRecord|string|null
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function one(ConnectionInterface $db = null)
+    public function one()
     {
         if ($this->emulateExecution) {
             return null;
         }
 
         // TODO add support for orderBy
-        $row = $this->executeScript($db, 'One');
+        $row = $this->executeScript('One');
         if (empty($row)) {
             return null;
         }
@@ -270,16 +261,12 @@ class ActiveQuery implements ActiveQueryInterface
     }
 
     /**
-     * Fetch by pk if possible as this is much faster
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @param string $type the type of the script to generate
-     * @param string $columnName
-     * @return array|bool|null|string
-     * @throws InvalidArgumentException
-     * @throws Throwable
+     * @param string $type
+     * @param string|null $columnName
+     * @return array|float|int|mixed|null
+     * @throws NotSupportedException
      */
-    private function findByPk(ConnectionInterface $db, string $type, string $columnName = null)
+    private function findByPk(string $type, string $columnName = null)
     {
         $needSort = !empty($this->orderBy) && in_array($type, ['All', 'One', 'Column']);
         if ($needSort) {
@@ -327,15 +314,15 @@ class ActiveQuery implements ActiveQueryInterface
         $i = 0;
         $data = [];
         $orderArray = [];
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $pkey = $this->db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         foreach ($pks as $pk) {
             if (++$i > $start && ($limit === null || $i <= $start + $limit)) {
                 $key = $pkey . ':a:' . $modelClass::buildKey($pk);
-                $result = $db->executeCommand('HGETALL', [$key]);
+                $result = $this->db->executeCommand('HGETALL', [$key]);
                 if (!empty($result)) {
                     $data[] = $result;
                     if ($needSort) {
-                        $orderArray[] = $db->executeCommand('HGET', [$key, $orderColumn]);
+                        $orderArray[] = $this->db->executeCommand('HGET', [$key, $orderColumn]);
                     }
                     if ($type === 'One' && $this->orderBy === null) {
                         break;
@@ -409,173 +396,149 @@ class ActiveQuery implements ActiveQueryInterface
     }
 
     /**
-     * Returns the number of records.
-     * @param string $q the COUNT expression. This parameter is ignored by this implementation.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int number of records
+     * @param string $q
+     * @return int
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function count(string $q = '*', ConnectionInterface $db = null): int
+    public function count(string $q = '*'): int
     {
         if ($this->emulateExecution) {
             return 0;
         }
 
         if ($this->where === null) {
-            /* @var $modelClass ActiveRecord */
-            $modelClass = $this->modelClass;
-            if ($db === null) {
-                $db = $modelClass::getDb();
-            }
-            return (int)$db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
+            return (int)$this->db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
         } else {
-            return (int)$this->executeScript($db, 'Count');
+            return (int)$this->executeScript('Count');
         }
     }
 
     /**
-     * Returns a value indicating whether the query result contains any row of data.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return bool whether the query result contains any row of data.
+     * @return bool
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function exists(ConnectionInterface $db = null): bool
+    public function exists(): bool
     {
         if ($this->emulateExecution) {
             return false;
         }
-        return $this->one($db) !== null;
+        return $this->one() !== null;
     }
 
     /**
-     * Executes the query and returns the first column of the result.
-     * @param string $column name of the column to select
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return array the first column of the query result. An empty array is returned if the query results in nothing.
+     * @param string $column
+     * @return array
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function column(string $column, ConnectionInterface $db = null): array
+    public function column(string $column): array
     {
         if ($this->emulateExecution) {
             return [];
         }
 
         // TODO add support for orderBy
-        return $this->executeScript($db, 'Column', $column);
+        return $this->executeScript('Column', $column);
     }
 
     /**
-     * Returns the number of records.
-     * @param string $column the column to sum up
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int number of records
+     * @param string $column
+     * @return int
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function sum(string $column, ConnectionInterface $db = null): int
+    public function sum(string $column): int
     {
         if ($this->emulateExecution) {
             return 0;
         }
 
-        return (int)$this->executeScript($db, 'Sum', $column);
+        return (int)$this->executeScript('Sum', $column);
     }
 
     /**
-     * Returns the average of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the average of the specified column values.
+     * @param string $column
+     * @return int
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function average(string $column, ConnectionInterface $db = null): int
+    public function average(string $column): int
     {
         if ($this->emulateExecution) {
             return 0;
         }
-        return (int)$this->executeScript($db, 'Average', $column);
+        return (int)$this->executeScript('Average', $column);
     }
 
     /**
-     * Returns the minimum of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the minimum of the specified column values.
+     * @param string $column
+     * @return int|null
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     */
+    public function min(string $column): ?int
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+        return (int)$this->executeScript('Min', $column);
+    }
+
+    /**
+     * @param string $column
+     * @return int|null
+     * @throws InvalidConfigException
+     * @throws ReflectionException
+     * @throws Throwable
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
+     * @throws \Psr\SimpleCache\InvalidArgumentException
+     */
+    public function max(string $column): ?int
+    {
+        if ($this->emulateExecution) {
+            return null;
+        }
+        return (int)$this->executeScript('Max', $column);
+    }
+
+    /**
+     * @param string $attribute
+     * @return string|null
      * @throws InvalidConfigException
      * @throws ReflectionException
      * @throws Throwable
      * @throws \Psr\SimpleCache\InvalidArgumentException
      */
-    public function min(string $column, ConnectionInterface $db = null): ?int
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-        return (int)$this->executeScript($db, 'Min', $column);
-    }
-
-    /**
-     * Returns the maximum of the specified column values.
-     * @param string $column the column name or expression.
-     * Make sure you properly quote column names in the expression.
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return int the maximum of the specified column values.
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
-    public function max(string $column, ConnectionInterface $db = null): ?int
-    {
-        if ($this->emulateExecution) {
-            return null;
-        }
-        return (int)$this->executeScript($db, 'Max', $column);
-    }
-
-    /**
-     * Returns the query result as a scalar value.
-     * The value returned will be the specified attribute in the first record of the query results.
-     * @param string $attribute name of the attribute to select
-     * @param ConnectionInterface $db the database connection used to execute the query.
-     * If this parameter is not given, the `db` application component will be used.
-     * @return string the value of the specified attribute in the first record of the query result.
-     * Null is returned if the query result is empty.
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
-    public function scalar(string $attribute, ConnectionInterface $db = null): ?string
+    public function scalar(string $attribute): ?string
     {
         if ($this->emulateExecution) {
             return null;
         }
 
-        $record = $this->one($db);
+        $record = $this->one();
         if ($record !== null) {
             return $record->hasAttribute($attribute) ? $record->$attribute : null;
         } else {

@@ -40,7 +40,7 @@ class ActiveRecord extends BaseActiveRecord
         if (empty($attributes)) {
             return 0;
         }
-        $conn = static::getDb();
+        $conn = static::getDb()->get();
         $n = 0;
         try {
             $isCluster = $conn->getCluster();
@@ -159,7 +159,7 @@ class ActiveRecord extends BaseActiveRecord
         if (empty($counters)) {
             return 0;
         }
-        $conn = static::getDb();
+        $conn = static::getDb()->get();
         $n = 0;
         try {
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
@@ -204,7 +204,7 @@ class ActiveRecord extends BaseActiveRecord
             return 0;
         }
 
-        $conn = static::getDb();
+        $conn = static::getDb()->get();
         try {
             $attributeKeys = [];
             $isCluster = $conn->getCluster();
@@ -250,7 +250,7 @@ class ActiveRecord extends BaseActiveRecord
         if ($runValidation && !$this->validate($attributes)) {
             return false;
         }
-        $conn = static::getDb();
+        $conn = static::getDb()->get();
         try {
             $values = $this->getDirtyAttributes($attributes);
             $pk = [];

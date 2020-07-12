@@ -22,7 +22,7 @@ class LuaScriptBuilder
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -65,7 +65,7 @@ class LuaScriptBuilder
 
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey);
         $loadColumnValues = '';
@@ -300,7 +300,7 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -318,7 +318,7 @@ EOF;
         // TODO add support for indexBy
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -349,7 +349,7 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -366,7 +366,7 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -387,7 +387,7 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
@@ -408,7 +408,7 @@ EOF;
     {
         /* @var $modelClass ActiveRecord */
         $modelClass = $query->modelClass;
-        $db = $modelClass::getDb();
+        $db = $query->db;
         $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
         $key = $this->quoteValue($pkey . ':a:');
 
