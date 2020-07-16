@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
+use Closure;
 use Rabbit\Base\App;
 use Rabbit\Base\Exception\NotSupportedException;
-use Rabbit\DB\Redis\Pool\RedisPool;
 use Rabbit\Pool\ConnectionInterface;
 use Rabbit\Pool\PoolInterface;
 use Throwable;
@@ -487,12 +487,21 @@ class Redis implements ConnectionInterface
     }
 
     /**
-     * @return ConnectionInterface
+     * @param Closure $function
+     * @return mixed
      * @throws Throwable
      */
-    public function get(): ConnectionInterface
+    public function __invoke(\Closure $function)
     {
-        return $this->pool->get();
+        $conn = $this->pool->get();
+        try {
+            return $function($conn);
+        } catch (\Throwable $exception) {
+            App::error($exception->getMessage(), 'redis');
+            throw $exception;
+        } finally {
+            $conn->release(true);
+        }
     }
 
     /**

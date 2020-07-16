@@ -7,7 +7,6 @@ use DI\DependencyException;
 use DI\NotFoundException;
 use Psr\SimpleCache\InvalidArgumentException;
 use Rabbit\ActiveRecord\BaseActiveRecord;
-use Rabbit\Base\App;
 use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\StringHelper;
@@ -40,9 +39,10 @@ class ActiveRecord extends BaseActiveRecord
         if (empty($attributes)) {
             return 0;
         }
-        $conn = static::getDb()->get();
         $n = 0;
-        try {
+        /** @var Redis $redis */
+        $redis = static::getDb();
+        $redis(function ($conn) use (&$attributes, &$condition, &$n) {
             $isCluster = $conn->getCluster();
             $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $arr = self::fetchPks($condition);
@@ -92,12 +92,7 @@ class ActiveRecord extends BaseActiveRecord
                 }
                 $n++;
             }
-        } catch (Throwable $exception) {
-            App::error($exception->getMessage(), 'redis');
-            throw $exception;
-        } finally {
-            $conn->release(true);
-        }
+        });
         return $n;
     }
 
@@ -159,9 +154,10 @@ class ActiveRecord extends BaseActiveRecord
         if (empty($counters)) {
             return 0;
         }
-        $conn = static::getDb()->get();
         $n = 0;
-        try {
+        /** @var Redis $redis */
+        $redis = static::getDb();
+        $redis(function ($conn) use (&$counters, &$condition, &$n) {
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $arr = self::fetchPks($condition);
             foreach ($arr as $pk) {
@@ -171,12 +167,7 @@ class ActiveRecord extends BaseActiveRecord
                 }
                 $n++;
             }
-        } catch (Throwable $exception) {
-            App::error($exception->getMessage(), 'redis');
-            throw $exception;
-        } finally {
-            $conn->release(true);
-        }
+        });
         return $n;
     }
 
@@ -203,9 +194,9 @@ class ActiveRecord extends BaseActiveRecord
         if (empty($pks)) {
             return 0;
         }
-
-        $conn = static::getDb()->get();
-        try {
+        /** @var Redis $redis */
+        $redis = static::getDb();
+        $result = $redis(function ($conn) use (&$pks) {
             $attributeKeys = [];
             $isCluster = $conn->getCluster();
             $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
@@ -218,13 +209,8 @@ class ActiveRecord extends BaseActiveRecord
             }
             $result = $conn->executeCommand('DEL', $attributeKeys);
             !$isCluster && ($result = $conn->executeCommand('EXEC'));
-        } catch (Throwable $exception) {
-            App::error($exception->getMessage(), 'redis');
-            throw $exception;
-        } finally {
-            $conn->release(true);
-        }
-
+            return $result;
+        });
         return (int)end($result);
     }
 
@@ -250,9 +236,10 @@ class ActiveRecord extends BaseActiveRecord
         if ($runValidation && !$this->validate($attributes)) {
             return false;
         }
-        $conn = static::getDb()->get();
-        try {
-            $values = $this->getDirtyAttributes($attributes);
+        $values = $this->getDirtyAttributes($attributes);
+        /** @var Redis $redis */
+        $redis = static::getDb();
+        $redis(function ($conn) use (&$values) {
             $pk = [];
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             foreach ($this->primaryKey() as $key) {
@@ -290,14 +277,7 @@ class ActiveRecord extends BaseActiveRecord
             if (count($setArgs) > 1) {
                 $conn->executeCommand('HMSET', $setArgs);
             }
-        } catch (Throwable $exception) {
-            App::error($exception, 'redis');
-            throw $exception;
-        } finally {
-            $conn->release(true);
-        }
-
-
+        });
         $this->setOldAttributes($values);
 
         return true;
