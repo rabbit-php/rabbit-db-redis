@@ -93,7 +93,7 @@ class SentinelsManager
             }
             if ($r) {
                 App::info("Sentinel @{$connectionName} gave $type addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
-                return [$r['ip'], $r['port']];
+                return [$r['ip'], (int)$r['port']];
             } else {
                 App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
             }
