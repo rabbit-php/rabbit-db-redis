@@ -42,7 +42,7 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
             if ($this->redis->set($name, true, ['NX', 'EX' => $timeout]) === false) {
                 return false;
             }
-            return call_user_func($function, ...$params);
+            return $function();
         } catch (Throwable $throwable) {
             print_r(ExceptionHelper::convertExceptionToArray($throwable));
         } finally {
