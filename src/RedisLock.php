@@ -39,13 +39,15 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
     {
         try {
             $name = empty($name) ? uniqid() : $name;
-            if ($this->redis->set($name, true, ['NX', 'EX' => $timeout]) === false) {
+            $nx = $timeout > 0 ? ['NX', 'EX' => $timeout] : ['NX'];
+            if ($this->redis->set("lock.$name", true, $nx) === null) {
                 return false;
             }
-            return $function();
+            $result = $function();
+            $this->redis->del($name);
+            return $result;
         } catch (Throwable $throwable) {
             print_r(ExceptionHelper::convertExceptionToArray($throwable));
-        } finally {
             $this->redis->del($name);
         }
     }
