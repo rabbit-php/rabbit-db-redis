@@ -428,7 +428,7 @@ class ActiveQuery implements ActiveQueryInterface
         if ($this->emulateExecution) {
             return false;
         }
-        return $this->one() !== null;
+        return $this->asArray()->one() !== null;
     }
 
     /**
