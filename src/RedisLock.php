@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Rabbit\DB\Redis;
 
 use Closure;
+use Rabbit\Base\App;
 use Rabbit\Base\Helper\ExceptionHelper;
 use rabbit\memory\atomic\LockInterface;
 use Throwable;
@@ -31,7 +32,6 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
      * @param Closure $function
      * @param string $name
      * @param float|int $timeout
-     * @param array $params
      * @return bool|mixed
      * @throws Throwable
      */
@@ -47,7 +47,7 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
             $this->redis->del($name);
             return $result;
         } catch (Throwable $throwable) {
-            print_r(ExceptionHelper::convertExceptionToArray($throwable));
+            App::error(ExceptionHelper::dumpExceptionToString($throwable));
             $this->redis->del($name);
         }
     }
