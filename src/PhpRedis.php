@@ -35,7 +35,6 @@ class PhpRedis extends AbstractConnection
         $address = $pool->getServiceList(true);
         $parseAry = [];
         $config = $this->parseUri(current($address), $parseAry);
-        $client = ArrayHelper::remove($config, 'client', 'predis');
         if (isset($config['cluster'])) {
             $this->cluster = true;
             $this->connCluster = new \RedisCluster(NULL, $address, $pool->getTimeout(), $pool->getTimeout(), false, ArrayHelper::getValue($config, 'parameters.password', ""));
@@ -47,15 +46,15 @@ class PhpRedis extends AbstractConnection
                 $this->sentinel = new \RedisSentinel($parseAry['host'], $parseAry['port'], $pool->getTimeout());
             }
             $this->conn = new \Redis();
-            $retrys = $pool->getPoolConfig()->getMaxRetry();
-            $retrys = $retrys > 0 ? $retrys : 1;
-            while ($retrys--) {
+            $retries = $pool->getPoolConfig()->getMaxRetry();
+            $retries = $retries > 0 ? $retries : 1;
+            while ($retries--) {
                 if (false !== $master = $this->sentinel->getMasterAddrByName(ArrayHelper::getValue($config, 'master', 'mymaster'))) {
                     [$host, $port] = $master;
                     $this->conn->connect($host, (int)$port);
                     return;
                 }
-                $retrys > 0 && System::sleep($pool->getTimeout());
+                $retries > 0 && System::sleep($pool->getTimeout());
             }
             throw new Exception("Connect to redis failed!");
         } else {
