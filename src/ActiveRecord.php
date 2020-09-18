@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
@@ -10,6 +11,7 @@ use Rabbit\ActiveRecord\BaseActiveRecord;
 use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\StringHelper;
+use Rabbit\DB\StaleObjectException;
 use Rabbit\Pool\ConnectionInterface;
 use Throwable;
 
@@ -19,6 +21,72 @@ use Throwable;
  */
 class ActiveRecord extends BaseActiveRecord
 {
+    /**
+     * @author Albert <63851587@qq.com>
+     * @param boolean $runValidation
+     * @param array $attributeNames
+     * @return boolean
+     */
+    public function save(bool $runValidation = true, array $attributeNames = null, float $ttl = 0): bool
+    {
+        if ($this->getIsNewRecord()) {
+            return $this->insert($runValidation, $attributeNames, $ttl);
+        }
+
+        return $this->update($runValidation, $attributeNames, $ttl) !== 0;
+    }
+    /**
+     * @author Albert <63851587@qq.com>
+     * @param boolean $runValidation
+     * @param array $attributeNames
+     * @return integer
+     */
+    public function update(bool $runValidation = true, array $attributeNames = null, float $ttl = 0): int
+    {
+        if ($runValidation && !$this->validate($attributeNames)) {
+            return 0;
+        }
+
+        return $this->updateInternal($attributeNames, $ttl);
+    }
+    /**
+     * @author Albert <63851587@qq.com>
+     * @param array $attributes
+     * @return integer
+     */
+    protected function updateInternal(array $attributes = null, float $ttl = 0): int
+    {
+        $values = $this->getDirtyAttributes($attributes);
+        if (empty($values)) {
+            return 0;
+        }
+        $condition = $this->getOldPrimaryKey();
+        $lock = $this->optimisticLock();
+        if ($lock !== null) {
+            $values[$lock] = $this->$lock + 1;
+            $condition[$lock] = $this->$lock;
+        }
+        // We do not check the return value of updateAll() because it's possible
+        // that the UPDATE statement doesn't change anything and thus returns 0.
+        $rows = static::updateAll($values, $condition, $ttl);
+
+        if ($lock !== null && !$rows) {
+            throw new StaleObjectException('The object being updated is outdated.');
+        }
+
+        if (isset($values[$lock])) {
+            $this->$lock = $values[$lock];
+        }
+
+        $changedAttributes = [];
+        foreach ($values as $name => $value) {
+            $changedAttributes[$name] = isset($this->_oldAttributes[$name]) ? $this->_oldAttributes[$name] : null;
+            $this->_oldAttributes[$name] = $value;
+        }
+
+        return $rows;
+    }
+
     /**
      * Updates the whole table using the provided attribute values and conditions.
      * For example, to change the status to be 1 for all customers whose status is 2:
@@ -34,7 +102,7 @@ class ActiveRecord extends BaseActiveRecord
      * @throws InvalidArgumentException
      * @throws Throwable
      */
-    public static function updateAll(array $attributes, $condition = ''): int
+    public static function updateAll(array $attributes, $condition = '', float $ttl = 0): int
     {
         if (empty($attributes)) {
             return 0;
@@ -42,7 +110,7 @@ class ActiveRecord extends BaseActiveRecord
         $n = 0;
         /** @var Redis $redis */
         $redis = static::getDb();
-        $redis(function ($conn) use (&$attributes, &$condition, &$n) {
+        $redis(function ($conn) use (&$attributes, &$condition, &$n, $ttl) {
             $isCluster = $conn->getCluster();
             $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $arr = self::fetchPks($condition);
@@ -82,14 +150,17 @@ class ActiveRecord extends BaseActiveRecord
                     $conn->executeCommand('LREM', [$pkey, 0, $pk]);
                     $conn->executeCommand('RENAME', [$key, $newKey]);
                     !$isCluster && $conn->executeCommand('EXEC');
+                    $ttl && $conn->executeCommand('EXPIRE', [$newKey, $ttl]);
                 } else {
                     if (count($setArgs) > 1) {
                         $conn->executeCommand('HMSET', $setArgs);
+                        $ttl && $conn->executeCommand('EXPIRE', [$key, $ttl]);
                     }
                     if (count($delArgs) > 1) {
                         $conn->executeCommand('HDEL', $delArgs);
                     }
                 }
+                $ttl && $conn->executeCommand('EXPIRE', [$key, $ttl]);
                 $n++;
             }
         });
@@ -149,7 +220,7 @@ class ActiveRecord extends BaseActiveRecord
      * @throws InvalidArgumentException
      * @throws Throwable
      */
-    public static function updateAllCounters(array $counters, $condition = ''): int
+    public static function updateAllCounters(array $counters, $condition = '', float $ttl = 0): int
     {
         if (empty($counters)) {
             return 0;
@@ -157,7 +228,7 @@ class ActiveRecord extends BaseActiveRecord
         $n = 0;
         /** @var Redis $redis */
         $redis = static::getDb();
-        $redis(function ($conn) use (&$counters, &$condition, &$n) {
+        $redis(function ($conn) use (&$counters, &$condition, &$n, $ttl) {
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             $arr = self::fetchPks($condition);
             foreach ($arr as $pk) {
@@ -165,6 +236,7 @@ class ActiveRecord extends BaseActiveRecord
                 foreach ($counters as $attribute => $value) {
                     $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
                 }
+                $ttl && $conn->executeCommand('EXPIRE', [$key, $ttl]);
                 $n++;
             }
         });
@@ -231,7 +303,7 @@ class ActiveRecord extends BaseActiveRecord
      * @return bool
      * @throws Throwable
      */
-    public function insert(bool $runValidation = true, array $attributes = null): bool
+    public function insert(bool $runValidation = true, array $attributes = null, float $ttl = 0): bool
     {
         if ($runValidation && !$this->validate($attributes)) {
             return false;
@@ -239,7 +311,7 @@ class ActiveRecord extends BaseActiveRecord
         $values = $this->getDirtyAttributes($attributes);
         /** @var Redis $redis */
         $redis = static::getDb();
-        $redis(function ($conn) use (&$values) {
+        $redis(function ($conn) use (&$values, $ttl) {
             $pk = [];
             $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
             foreach ($this->primaryKey() as $key) {
@@ -276,6 +348,7 @@ class ActiveRecord extends BaseActiveRecord
 
             if (count($setArgs) > 1) {
                 $conn->executeCommand('HMSET', $setArgs);
+                $ttl && $conn->executeCommand('EXPIRE', [$key, $ttl]);
             }
         });
         $this->setOldAttributes($values);
