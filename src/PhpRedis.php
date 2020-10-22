@@ -6,6 +6,7 @@ namespace Rabbit\DB\Redis;
 
 
 use Co\System;
+use Rabbit\Base\App;
 use RedisClusterException;
 use Rabbit\Pool\PoolManager;
 use Rabbit\Base\Core\Exception;
@@ -20,12 +21,9 @@ class PhpRedis extends AbstractConnection
 {
     use ClusterTrait;
 
-    /** @var \Redis */
-    private \Redis $conn;
-    /** @var \RedisCluster */
-    private \RedisCluster $connCluster;
-    /** @var \RedisSentinel */
-    private \RedisSentinel $sentinel;
+    private ?\Redis $conn;
+    private ?\RedisCluster $connCluster;
+    private ?\RedisSentinel $sentinel;
 
     /**
      * @throws RedisClusterException|Exception
@@ -114,26 +112,40 @@ class PhpRedis extends AbstractConnection
      */
     public function executeCommand(string $name, array $args = [])
     {
-        if ($this->cluster) {
-            return $this->connCluster->$name(...$args);
+        $retries = $this->getPool()->getPoolConfig()->getMaxRetry();
+        $retries = $retries > 0 ? $retries : 1;
+        while ($retries--) {
+            try {
+                if ($this->cluster) {
+                    return $this->connCluster->$name(...$args);
+                }
+                switch (strtolower($name)) {
+                    case 'hmset':
+                        $key = array_shift($args);
+                        $args = Redis::parseData($args);
+                        $data = $this->conn->$name($key, $args);
+                        break;
+                    case 'lrem':
+                        $key = array_shift($args);
+                        $data = $this->conn->$name($key, array_reverse($args));
+                        break;
+                    case 'eval':
+                        $data = $this->conn->$name(array_shift($args), $args);
+                        break;
+                    default:
+                        $data = $this->conn->$name(...$args);
+                }
+                return $data;
+            } catch (\RedisException $e) {
+                if ($retries === 0) {
+                    throw $e;
+                }
+                App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
+                System::sleep($this->retryDelay);
+                $this->conn = null;
+                $this->createConnection();
+            }
         }
-        switch (strtolower($name)) {
-            case 'hmset':
-                $key = array_shift($args);
-                $args = Redis::parseData($args);
-                $data = $this->conn->$name($key, $args);
-                break;
-            case 'lrem':
-                $key = array_shift($args);
-                $data = $this->conn->$name($key, array_reverse($args));
-                break;
-            case 'eval':
-                $data = $this->conn->$name(array_shift($args), $args);
-                break;
-            default:
-                $data = $this->conn->$name(...$args);
-        }
-        return $data;
     }
 
     /**

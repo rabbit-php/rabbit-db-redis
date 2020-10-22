@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
@@ -7,6 +8,7 @@ use Throwable;
 use Predis\Client;
 use Rabbit\Base\App;
 use Rabbit\Pool\PoolManager;
+use Swoole\Coroutine\System;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\ArrayHelper;
 use Rabbit\Pool\AbstractConnection;
@@ -19,7 +21,6 @@ class Predis extends AbstractConnection
 {
     use ClusterTrait;
 
-    /** @var Client */
     private ?Client $conn = null;
 
     public function createConnection(): void
@@ -68,7 +69,21 @@ class Predis extends AbstractConnection
      */
     public function executeCommand(string $name, array $params = [])
     {
-        return $this->conn->$name(...$params);
+        $retries = $this->getPool()->getPoolConfig()->getMaxRetry();
+        $retries = $retries > 0 ? $retries : 1;
+        while ($retries--) {
+            try {
+                return $this->conn->$name(...$params);
+            } catch (Throwable $e) {
+                if ($retries === 0) {
+                    throw $e;
+                }
+                App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
+                System::sleep($this->retryDelay);
+                $this->conn = null;
+                $this->createConnection();
+            }
+        }
     }
 
     /**
