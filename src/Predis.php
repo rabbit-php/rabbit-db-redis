@@ -78,7 +78,7 @@ class Predis extends AbstractConnection
                 if ($retries === 0) {
                     throw $e;
                 }
-                App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
+                App::warning(sprintf('Redis connection retry after %.3f', $this->retryDelay));
                 System::sleep($this->retryDelay);
                 $this->conn = null;
                 $this->createConnection();
