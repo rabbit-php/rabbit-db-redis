@@ -3,16 +3,13 @@ declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
+use Throwable;
 use Predis\Client;
 use Rabbit\Base\App;
+use Rabbit\Pool\PoolManager;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\ArrayHelper;
-use Rabbit\DB\Redis\Commands\ClusterEVAL;
-use Rabbit\DB\Redis\Commands\EXEC;
-use Rabbit\DB\Redis\Commands\MUTIL;
 use Rabbit\Pool\AbstractConnection;
-use Rabbit\Pool\PoolManager;
-use Throwable;
 
 /**
  * Class Predis

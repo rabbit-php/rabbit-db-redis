@@ -1,15 +1,16 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
 
 use Co\System;
+use RedisClusterException;
+use Rabbit\Pool\PoolManager;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\ArrayHelper;
 use Rabbit\Pool\AbstractConnection;
-use Rabbit\Pool\PoolManager;
-use RedisClusterException;
 
 /**
  * Class PhpRedis
@@ -51,7 +52,8 @@ class PhpRedis extends AbstractConnection
             while ($retries--) {
                 if (false !== $master = $this->sentinel->getMasterAddrByName(ArrayHelper::getValue($config, 'master', 'mymaster'))) {
                     [$host, $port] = $master;
-                    $this->conn->connect($host, (int)$port);
+                    $this->conn->connect($host, (int)$port, $pool->getTimeout());
+
                     return;
                 }
                 $retries > 0 && System::sleep($pool->getTimeout());
@@ -60,6 +62,14 @@ class PhpRedis extends AbstractConnection
         } else {
             $this->conn = new \Redis();
             $this->conn->connect($parseAry['host'], (int)$parseAry['port'], $pool->getTimeout());
+        }
+        if ($this->conn) {
+            if ($pass = ArrayHelper::getValue($config, 'parameters.password')) {
+                $this->conn->auth($pass);
+            }
+            if ($db = ArrayHelper::getValue($config, 'parameters.database')) {
+                $this->conn->select((int)$db);
+            }
         }
     }
 
@@ -84,6 +94,17 @@ class PhpRedis extends AbstractConnection
         $options['parameters']['password'] = ArrayHelper::remove($options, 'password', "");
         (isset($parseAry['path']) && !isset($options['cluster'])) && $options['parameters']['database'] = str_replace('/', '', $parseAry['path']);
         return $options;
+    }
+    /**
+     * @Author Albert 63851587@qq.com
+     * @DateTime 2020-10-22
+     * @param [type] $name
+     * @param [type] $arguments
+     * @return void
+     */
+    public function __call($name, $arguments)
+    {
+        return $this->executeCommand($name, $arguments);
     }
 
     /**
