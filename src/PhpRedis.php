@@ -137,13 +137,17 @@ class PhpRedis extends AbstractConnection
                 }
                 return $data;
             } catch (\RedisException $e) {
-                if ($retries === 0) {
-                    throw $e;
+                try {
+                    $this->conn->ping('');
+                } catch (\RedisException $ex) {
+                    if ($retries === 0) {
+                        throw $e;
+                    }
+                    App::warning(sprintf('Redis connection retry after %.3f', $this->retryDelay));
+                    System::sleep($this->retryDelay);
+                    $this->conn = null;
+                    $this->createConnection();
                 }
-                App::warning(sprintf('Redis connection retry after %.3f', $this->retryDelay));
-                System::sleep($this->retryDelay);
-                $this->conn = null;
-                $this->createConnection();
             }
         }
     }
