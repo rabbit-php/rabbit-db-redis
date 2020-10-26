@@ -6,7 +6,6 @@ namespace Rabbit\DB\Redis;
 use Closure;
 use Rabbit\Base\App;
 use Rabbit\Base\Helper\ExceptionHelper;
-use rabbit\memory\atomic\LockInterface;
 use Throwable;
 
 /**

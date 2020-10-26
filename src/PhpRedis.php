@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
-
-use Co\System;
 use Rabbit\Base\App;
 use RedisClusterException;
 use Rabbit\Pool\PoolManager;
@@ -54,7 +52,7 @@ class PhpRedis extends AbstractConnection
 
                     return;
                 }
-                $retries > 0 && System::sleep($pool->getTimeout());
+                $retries > 0 && usleep($pool->getTimeout() * 1000);
             }
             throw new Exception("Connect to redis failed!");
         } else {
@@ -144,7 +142,7 @@ class PhpRedis extends AbstractConnection
                         throw $e;
                     }
                     App::warning(sprintf('Redis connection retry after %.3f', $this->retryDelay));
-                    System::sleep($this->retryDelay);
+                    usleep($this->retryDelay * 1000);
                     $this->conn = null;
                     $this->createConnection();
                 }

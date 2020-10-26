@@ -8,7 +8,6 @@ use Throwable;
 use Predis\Client;
 use Rabbit\Base\App;
 use Rabbit\Pool\PoolManager;
-use Swoole\Coroutine\System;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\ArrayHelper;
 use Rabbit\Pool\AbstractConnection;
@@ -79,7 +78,7 @@ class Predis extends AbstractConnection
                     throw $e;
                 }
                 App::warning(sprintf('Redis connection retry after %.3f', $this->retryDelay));
-                System::sleep($this->retryDelay);
+                usleep($this->retryDelay * 1000);
                 $this->conn = null;
                 $this->createConnection();
             }

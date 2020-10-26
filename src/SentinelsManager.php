@@ -1,12 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
-use Co\Channel;
 use Exception;
-use Rabbit\Base\App;
 use Throwable;
+use Rabbit\Base\App;
 
 /**
  * Class SentinelsManager
@@ -15,17 +15,16 @@ use Throwable;
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
-    /** @var Channel */
-    protected Channel $channel;
+    protected  $channel;
     /** @var int */
     protected int $current = 0;
 
     /**
      * SentinelsManager constructor.
      */
-    public function __construct()
+    public function __construct(int $size = 3)
     {
-        $this->channel = new Channel();
+        $this->channel = makeChannel($size);
     }
 
     /**
@@ -38,7 +37,7 @@ class SentinelsManager
     public function discover(array $sentinels, string $type, string $masterName = 'mymaster')
     {
         $size = count($sentinels);
-        $this->channel->capacity = $size;
+        // $this->channel->capacity = $size;
         foreach ($sentinels as $sentinel) {
             if (is_scalar($sentinel)) {
                 $sentinel = [
@@ -48,6 +47,7 @@ class SentinelsManager
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
 
             if ($this->current >= $size) {
+                waitChannel($this->channel, 3, 0);
                 $connection = $this->channel->pop();
             } else {
                 try {
@@ -64,7 +64,6 @@ class SentinelsManager
                     $this->current--;
                     throw new Exception("can not open sentinel, $key");
                 }
-
             }
             $method = 'get' . ucfirst($type);
             try {

@@ -7,7 +7,6 @@ namespace Rabbit\DB\Redis;
 use Throwable;
 use Rabbit\Base\App;
 use Rabbit\Pool\PoolManager;
-use Swoole\Coroutine\System;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\ArrayHelper;
@@ -177,7 +176,7 @@ class Connection extends AbstractConnection
                 App::error((string)$e, 'redis');
                 $this->close(false);
                 App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
-                System::sleep($this->retryDelay);
+                usleep($this->retryDelay * 1000);
                 $this->$type = null;
                 $this->open();
             }

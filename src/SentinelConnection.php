@@ -1,11 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
 use Co\Client;
-use Rabbit\Base\App;
 use Throwable;
+use Rabbit\Base\App;
 
 /**
  * Class SentinelConnection
@@ -74,11 +75,13 @@ class SentinelConnection
     public function getMaster()
     {
         if ($this->open()) {
-            return $this->executeCommand('sentinel',
+            return $this->executeCommand(
+                'sentinel',
                 [
                     'master',
                     $this->masterName
-                ]);
+                ]
+            );
         } else {
             return false;
         }

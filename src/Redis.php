@@ -162,7 +162,7 @@ class Redis implements ConnectionInterface
                     ]);
                 }
             }
-            return getDI(SentinelsManager::class)->discover($sentinels, $type, isset($config['master']) ? $config['master'] : 'mymaster');
+            return create(SentinelsManager::class, ['size' => count($sentinels)])->discover($sentinels, $type, isset($config['master']) ? $config['master'] : 'mymaster');
         }
         $host = $config['host'];
         $port = (int)$config['port'];
