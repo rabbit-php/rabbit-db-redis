@@ -147,7 +147,7 @@ class Redis implements ConnectionInterface
                     'port' => $config['port']
                 ]);
             } else {
-                $res = \Co::getaddrinfo($config['host']);
+                $res = gethostbynamel($config['host']);
                 if ($res) {
                     foreach ($res as $ip) {
                         $sentinels[] = array_filter([
