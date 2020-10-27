@@ -47,7 +47,6 @@ class SentinelsManager
             $key = $sentinel['hostname'] . (isset($sentinel['port']) ? ':' . $sentinel['port'] : '');
 
             if ($this->current >= $size) {
-                waitChannel($this->channel);
                 $connection = $this->channel->pop();
             } else {
                 try {
