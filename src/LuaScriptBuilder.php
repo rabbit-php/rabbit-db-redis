@@ -1,9 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
-
+use Rabbit\Base\Exception\InvalidArgumentException;
+use Rabbit\Base\Exception\NotSupportedException;
+use Rabbit\DB\Exception;
 use Throwable;
 
 /**
@@ -255,8 +258,7 @@ EOF;
         array $inColumns,
         array $values,
         array &$columns
-    ): string
-    {
+    ): string {
         $vss = [];
         foreach ($values as $value) {
             $vs = [];
