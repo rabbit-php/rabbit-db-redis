@@ -7,6 +7,7 @@ namespace Rabbit\DB\Redis;
 use Rabbit\Base\Exception\InvalidArgumentException;
 use Rabbit\Base\Exception\NotSupportedException;
 use Rabbit\DB\Exception;
+use Rabbit\DB\Expression;
 use Throwable;
 
 /**
