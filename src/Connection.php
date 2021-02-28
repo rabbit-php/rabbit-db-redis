@@ -176,7 +176,7 @@ class Connection extends AbstractConnection
                 App::error((string)$e, 'redis');
                 $this->close(false);
                 App::warning(sprintf('Redis connection retry host=%s port=%d,after %.3f', $this->hostname, $this->port, $this->retryDelay));
-                usleep($this->retryDelay * 1000);
+                usleep($this->retryDelay * 1000 * 1000);
                 $this->$type = null;
                 $this->open();
             }
