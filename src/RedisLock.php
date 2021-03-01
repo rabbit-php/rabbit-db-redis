@@ -38,10 +38,10 @@ class RedisLock implements LockInterface
      */
     public function __invoke(Closure $function, bool $next = true, string $name = '', float $timeout = 600)
     {
-        $name = empty($name) ? uniqid() : $name;
+        $name = "lock." . (empty($name) ? uniqid() : $name);
         try {
             $nx = $timeout > 0 ? ['NX', 'EX' => $timeout] : ['NX'];
-            while ($this->redis->set("lock.$name", true, $nx) === null) {
+            while ($this->redis->set($name, true, $nx) === null) {
                 if ($next) {
                     usleep(10 * 1000);
                 } else {
