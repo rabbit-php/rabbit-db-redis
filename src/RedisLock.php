@@ -1,10 +1,12 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
 use Closure;
 use Rabbit\Base\App;
+use Rabbit\Base\Contract\LockInterface;
 use Rabbit\Base\Helper\ExceptionHelper;
 use Throwable;
 
@@ -12,7 +14,7 @@ use Throwable;
  * Class RedisLock
  * @package Rabbit\DB\Redis
  */
-class RedisLock implements \Rabbit\Base\Contract\LockInterface
+class RedisLock implements LockInterface
 {
     /** @var Redis */
     protected ?Redis $redis;
@@ -34,13 +36,17 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
      * @return bool|mixed
      * @throws Throwable
      */
-    public function __invoke(Closure $function, string $name = '', float $timeout = 600)
+    public function __invoke(Closure $function, bool $next = true, string $name = '', float $timeout = 600)
     {
+        $name = empty($name) ? uniqid() : $name;
         try {
-            $name = empty($name) ? uniqid() : $name;
             $nx = $timeout > 0 ? ['NX', 'EX' => $timeout] : ['NX'];
-            if ($this->redis->set("lock.$name", true, $nx) === null) {
-                return false;
+            while ($this->redis->set("lock.$name", true, $nx) === null) {
+                if ($next) {
+                    usleep(10 * 1000);
+                } else {
+                    return false;
+                }
             }
             $result = $function();
             $this->redis->del($name);
@@ -50,5 +56,4 @@ class RedisLock implements \Rabbit\Base\Contract\LockInterface
             $this->redis->del($name);
         }
     }
-
 }
