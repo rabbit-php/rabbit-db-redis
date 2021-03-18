@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
@@ -122,10 +123,8 @@ class ActiveQuery implements ActiveQueryInterface
         $modelClass = $this->modelClass;
 
         // find by primary key if possible. This is much faster than scanning all records
-        if (is_array($this->where) && (
-                !isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
-                isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1])
-            )) {
+        if (is_array($this->where) && (!isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
+            isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1]))) {
             return $this->findByPk($type, $columnName);
         }
 
