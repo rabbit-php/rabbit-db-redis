@@ -30,6 +30,9 @@
     "rabbit/cache": "Use redis cache"
   },
   "autoload": {
+    "files": [
+      "src/functions.php"
+    ],
     "psr-4": {
       "Rabbit\\DB\\Redis\\": "src/"
     }
