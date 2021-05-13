@@ -40,7 +40,7 @@ class RedisLock implements LockInterface
     {
         $name = "lock:" . (empty($name) ? uniqid() : $name);
         try {
-            $nx = $timeout > 0 ? ['NX', 'EX' => $timeout] : ['NX'];
+            $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
             while ($this->redis->set($name, true, $nx) === null) {
                 if ($next) {
                     usleep(100000);
