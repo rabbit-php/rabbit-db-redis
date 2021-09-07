@@ -8,7 +8,6 @@ use Throwable;
 use Rabbit\Base\App;
 use Rabbit\Pool\PoolManager;
 use Rabbit\Base\Core\Exception;
-use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\ArrayHelper;
 use Rabbit\Pool\AbstractConnection;
 use Rabbit\Base\Exception\NotSupportedException;
@@ -336,7 +335,7 @@ class Connection extends AbstractConnection
                 // no cast to int as it is in the range of a signed 64 bit integer
                 return $line;
             case '$': // Bulk replies
-                if ($line == '-1') {
+                if ($line === '-1') {
                     return null;
                 }
                 $length = (int)$line + 2;
@@ -378,8 +377,7 @@ class Connection extends AbstractConnection
      */
     public function __call($name, $params)
     {
-        $redisCommand = strtoupper(Inflector::camel2words($name, false));
-        return $this->executeCommand($redisCommand, $params);
+        return $this->executeCommand($name, $params);
     }
 
     /**
