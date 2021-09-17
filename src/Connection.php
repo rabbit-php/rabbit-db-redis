@@ -16,82 +16,32 @@ class Connection extends AbstractConnection
 {
     use ClusterTrait;
 
-    /**
-     * @var string the hostname or ip address to use for connecting to the redis server. Defaults to 'localhost'.
-     * If [[unixSocket]] is specified, hostname and [[port]] will be ignored.
-     */
     private string $hostname = 'localhost';
-    /**
-     * @var integer the port to use for connecting to the redis server. Default port is 6379.
-     * If [[unixSocket]] is specified, [[hostname]] and port will be ignored.
-     */
+
     private int $port = 6379;
-    /**
-     * @var string the unix socket path (e.g. `/var/run/redis/redis.sock`) to use for connecting to the redis server.
-     * This can be used instead of [[hostname]] and [[port]] to connect to the server using a unix socket.
-     * If a unix socket path is specified, [[hostname]] and [[port]] will be ignored.
-     */
+
     private ?string $unixSocket = null;
-    /**
-     * @var integer the redis database to use. This is an integer value starting from 0. Defaults to 0.
-     * Since version 2.0.6 you can disable the SELECT command sent after connection by setting this property to `null`.
-     */
+
     private int $database = 0;
-    /**
-     * @var float timeout to use for connection to redis. If not set the timeout set in php.ini will be used: `ini_get("default_socket_timeout")`.
-     */
+
     private ?float $connectionTimeout = null;
-    /**
-     * @var float timeout to use for redis socket when reading and writing data. If not set the php default value will be used.
-     */
+
     private ?float $dataTimeout = null;
-    /**
-     * @var integer Bitmask field which may be set to any combination of connection flags passed to [stream_socket_client()](http://php.net/manual/en/function.stream-socket-client.php).
-     * Currently the select of connection flags is limited to `STREAM_CLIENT_CONNECT` (default), `STREAM_CLIENT_ASYNC_CONNECT` and `STREAM_CLIENT_PERSISTENT`.
-     *
-     * > Warning: `STREAM_CLIENT_PERSISTENT` will make PHP reuse connections to the same server. If you are using multiple
-     * > connection objects to refer to different redis [[$database|databases]] on the same [[port]], redis commands may
-     * > get executed on the wrong database. `STREAM_CLIENT_PERSISTENT` is only safe to use if you use only one database.
-     * >
-     * > You may still use persistent connections in this case when disambiguating ports as described
-     * > in [a comment on the PHP manual](http://php.net/manual/en/function.stream-socket-client.php#105393)
-     * > e.g. on the connection used for session storage, specify the port as:
-     * >
-     * > ```php
-     * > 'port' => '6379/session'
-     * > ```
-     *
-     * @see http://php.net/manual/en/function.stream-socket-client.php
-     * @since 2.0.5
-     */
+
     private int $socketClientFlags = STREAM_CLIENT_CONNECT;
 
-    /**
-     * @var resource redis socket connection
-     */
     private $_socket = null;
-    /**
-     * @var resource redis socket connection
-     */
+
     private $_socketSlave = null;
-    /** @var bool */
+
     private bool $separate = false;
 
-    /**
-     * Closes the connection when this component is being serialized.
-     * @return array
-     */
     public function __sleep()
     {
         $this->close();
         return array_keys(get_object_vars($this));
     }
 
-    /**
-     * @param bool $quit
-     * @throws Exception
-     * @throws Throwable
-     */
     public function close(bool $quit = true)
     {
         if ($this->_socket !== null) {
@@ -113,34 +63,7 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * Executes a redis command.
-     * For a list of available commands and their parameters see http://redis.io/commands.
-     *
-     * The params array should contain the params separated by white space, e.g. to execute
-     * `SET mykey somevalue NX` call the following:
-     *
-     * ```php
-     * $redis->executeCommand('SET', ['mykey', 'somevalue', 'NX']);
-     * ```
-     *
-     * @param string $name the name of the command
-     * @param array $params list of parameters for the command
-     * @return array|bool|null|string Dependent on the executed command this method
-     * will return different data types:
-     *
-     * - `true` for commands that return "status reply" with the message `'OK'` or `'PONG'`.
-     * - `string` for commands that return "status reply" that does not have the message `OK` (since version 2.0.1).
-     * - `string` for commands that return "integer reply"
-     *   as the value is in the range of a signed 64 bit integer.
-     * - `string` or `null` for commands that return "bulk reply".
-     * - `array` for commands that return "Multi-bulk replies".
-     *
-     * See [redis protocol description](http://redis.io/topics/protocol)
-     * for details on the mentioned reply types.
-     * @throws Throwable for commands that return [error reply](http://redis.io/topics/protocol#error-reply).
-     */
-    public function executeCommand(string $name, array $params = [])
+    public function executeCommand(string $name, array $params = []): array|bool|null|string
     {
         $name = strtoupper($name);
         $tmp = [];
@@ -181,10 +104,6 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * @param array $params
-     * @param array $tmp
-     */
     private function parseParams(array $params, array &$tmp): void
     {
         foreach ($params as $index => $item) {
@@ -198,12 +117,7 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * Establishes a DB connection.
-     * It does nothing if a DB connection has already been established.
-     * @throws Throwable if connection fails
-     */
-    public function open()
+    public function open(): void
     {
         if ($this->_socket !== null) {
             return;
@@ -219,11 +133,6 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * @param array $config
-     * @param string $type
-     * @throws Throwable
-     */
     private function makeConn(array $config, string $type): void
     {
         [$this->hostname, $this->port] = Redis::getCurrent($config, $type === '_socket' ? 'master' : 'slave');
@@ -261,11 +170,6 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * @param string $uri
-     * @return array
-     * @throws Exception
-     */
     protected function parseUri(string $uri): array
     {
         $parseAry = parse_url($uri);
@@ -286,15 +190,7 @@ class Connection extends AbstractConnection
         return $configs;
     }
 
-    /**
-     * @param string $command
-     * @param array $params
-     * @param string $type
-     * @return array|bool|string|null
-     * @throws Exception
-     * @throws SocketException
-     */
-    private function sendCommandInternal(string $command, array $params, string $type)
+    private function sendCommandInternal(string $command, array $params, string $type): array|bool|null|string
     {
         $written = @fwrite($this->$type, $command);
         if ($written === false) {
@@ -306,14 +202,7 @@ class Connection extends AbstractConnection
         return $this->parseResponse(implode(' ', $params), $type);
     }
 
-    /**
-     * @param string $command
-     * @param string $socket
-     * @return array|bool|string|null
-     * @throws Exception
-     * @throws SocketException
-     */
-    private function parseResponse(string $command, string $socket)
+    private function parseResponse(string $command, string $socket): array|bool|null|string
     {
         if (($line = @fgets($this->$socket)) === false) {
             throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
@@ -361,35 +250,16 @@ class Connection extends AbstractConnection
         }
     }
 
-    /**
-     * Allows issuing all supported commands via magic methods.
-     *
-     * ```php
-     * $redis->hmset('test_collection', 'key1', 'val1', 'key2', 'val2')
-     * ```
-     *
-     * @param string $name name of the missing method to execute
-     * @param array $params method call arguments
-     * @return mixed
-     * @throws NotSupportedException
-     * @throws Throwable
-     */
     public function __call($name, $params)
     {
         return $this->executeCommand($name, $params);
     }
 
-    /**
-     * @throws Throwable
-     */
     public function createConnection(): void
     {
         $this->open();
     }
 
-    /**
-     * @throws Throwable
-     */
     public function reconnect(): void
     {
         $this->open();

@@ -29,24 +29,6 @@ class ActiveQuery implements ActiveQueryInterface
 
     public ?ConnectionInterface $db = null;
 
-    /**
-     * Constructor.
-     * @param string $modelClass the model class associated with this query
-     * @param array $config configurations to be applied to the newly created query object
-     */
-    public function __construct(string $modelClass, array $config = [])
-    {
-        $this->modelClass = $modelClass;
-        $this->db = $modelClass::getDb();
-    }
-
-    /**
-     * @return array
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function all(): array
     {
         if ($this->emulateExecution) {
@@ -54,12 +36,11 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         // TODO add support for orderBy
-        $rows = $this->executeScript('All');
-        if (empty($rows)) {
+        $models = $this->executeScript('All');
+        if (empty($models)) {
             return [];
         }
 
-        $models = $this->createModels($rows);
         if (!empty($this->with)) {
             $this->findWith($this->with, $models);
         }
@@ -120,11 +101,11 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         /* @var $modelClass ActiveRecord */
-        $modelClass = $this->modelClass;
+        $modelClass = create($this->modelClass, ['db' => $this->db]);
 
         // find by primary key if possible. This is much faster than scanning all records
-        if (is_array($this->where) && (!isset($this->where[0]) && $modelClass::isPrimaryKey(array_keys($this->where)) ||
-            isset($this->where[0]) && $this->where[0] === 'in' && $modelClass::isPrimaryKey((array)$this->where[1]))) {
+        if (is_array($this->where) && (!isset($this->where[0]) && $modelClass->isPrimaryKey(array_keys($this->where)) ||
+            isset($this->where[0]) && $this->where[0] === 'in' && $modelClass->isPrimaryKey((array)$this->where[1]))) {
             return $this->findByPk($type, $columnName);
         }
 
@@ -223,32 +204,14 @@ class ActiveQuery implements ActiveQueryInterface
         return $data;
     }
 
-    /**
-     * @return array|bool|float|int|mixed|ActiveRecord|string|null
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
-    public function one()
+    public function one(): ?array
     {
         if ($this->emulateExecution) {
             return null;
         }
-
-        // TODO add support for orderBy
-        $row = $this->executeScript('One');
-        if (empty($row)) {
+        $model = $this->executeScript('One');
+        if (empty($model)) {
             return null;
-        }
-        if ($this->asArray) {
-            $model = $row;
-        } else {
-            /* @var $class ActiveRecord */
-            $class = $this->modelClass;
-            $model = $class::instantiate();
-            $class = get_class($model);
-            $class::populateRecord($model, $row);
         }
         if (!empty($this->with)) {
             $models = [$model];
@@ -293,7 +256,6 @@ class ActiveQuery implements ActiveQueryInterface
         } else {
             foreach ($this->where as $values) {
                 if (is_array($values)) {
-                    // TODO support composite IN for composite PK
                     throw new NotSupportedException('Find by composite PK is not supported by redis ActiveRecord.');
                 }
             }
@@ -301,7 +263,7 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         /* @var $modelClass ActiveRecord */
-        $modelClass = $this->modelClass;
+        $modelClass = create($this->modelClass, ['db' => $this->db]);
 
         if ($type === 'Count') {
             $start = 0;
@@ -313,10 +275,10 @@ class ActiveQuery implements ActiveQueryInterface
         $i = 0;
         $data = [];
         $orderArray = [];
-        $pkey = $this->db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
+        $pkey = $this->db->getCluster() ? '{' . $modelClass->keyPrefix() . '}' : $modelClass->keyPrefix();
         foreach ($pks as $pk) {
             if (++$i > $start && ($limit === null || $i <= $start + $limit)) {
-                $key = $pkey . ':a:' . $modelClass::buildKey($pk);
+                $key = $pkey . ':a:' . $modelClass->buildKey($pk);
                 $result = $this->db->executeCommand('HGETALL', [$key]);
                 if (!empty($result)) {
                     $data[] = $result;
@@ -394,14 +356,6 @@ class ActiveQuery implements ActiveQueryInterface
         throw new InvalidArgumentException('Unknown fetch type: ' . $type);
     }
 
-    /**
-     * @param string $q
-     * @return int
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function count(string $q = '*'): int
     {
         if ($this->emulateExecution) {
@@ -409,57 +363,28 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         if ($this->where === null) {
-            return (int)$this->db->executeCommand('LLEN', [$modelClass::keyPrefix()]);
+            return (int)$this->db->executeCommand('LLEN', [create($this->modelClass, ['db' => $this->db])->keyPrefix()]);
         } else {
             return (int)$this->executeScript('Count');
         }
     }
 
-    /**
-     * @return bool
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function exists(): bool
     {
         if ($this->emulateExecution) {
             return false;
         }
-        return $this->asArray()->one() !== null;
+        return $this->one() !== null;
     }
 
-    /**
-     * @param string $column
-     * @return array
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function column(string $column): array
     {
         if ($this->emulateExecution) {
             return [];
         }
-
-        // TODO add support for orderBy
         return $this->executeScript('Column', $column);
     }
 
-    /**
-     * @param string $column
-     * @return int
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function sum(string $column): int
     {
         if ($this->emulateExecution) {
@@ -469,16 +394,6 @@ class ActiveQuery implements ActiveQueryInterface
         return (int)$this->executeScript('Sum', $column);
     }
 
-    /**
-     * @param string $column
-     * @return int
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function average(string $column): int
     {
         if ($this->emulateExecution) {
@@ -487,16 +402,6 @@ class ActiveQuery implements ActiveQueryInterface
         return (int)$this->executeScript('Average', $column);
     }
 
-    /**
-     * @param string $column
-     * @return int|null
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function min(string $column): ?int
     {
         if ($this->emulateExecution) {
@@ -505,16 +410,6 @@ class ActiveQuery implements ActiveQueryInterface
         return (int)$this->executeScript('Min', $column);
     }
 
-    /**
-     * @param string $column
-     * @return int|null
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function max(string $column): ?int
     {
         if ($this->emulateExecution) {
@@ -523,14 +418,6 @@ class ActiveQuery implements ActiveQueryInterface
         return (int)$this->executeScript('Max', $column);
     }
 
-    /**
-     * @param string $attribute
-     * @return string|null
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     public function scalar(string $attribute): ?string
     {
         if ($this->emulateExecution) {
@@ -538,10 +425,6 @@ class ActiveQuery implements ActiveQueryInterface
         }
 
         $record = $this->one();
-        if ($record !== null) {
-            return $record->hasAttribute($attribute) ? $record->$attribute : null;
-        } else {
-            return null;
-        }
+        return $record[$attribute] ?? null;
     }
 }

@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
-use DI\DependencyException;
-use DI\NotFoundException;
-use Psr\SimpleCache\InvalidArgumentException;
 use Rabbit\ActiveRecord\BaseActiveRecord;
 use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\StringHelper;
 use Rabbit\DB\StaleObjectException;
 use Rabbit\Pool\ConnectionInterface;
-use Throwable;
 
 /**
  * Class ActiveRecord
@@ -21,12 +17,6 @@ use Throwable;
  */
 class ActiveRecord extends BaseActiveRecord
 {
-    /**
-     * @author Albert <63851587@qq.com>
-     * @param boolean $runValidation
-     * @param array $attributeNames
-     * @return boolean
-     */
     public function save(bool $runValidation = true, array $attributeNames = null, float $ttl = 0): bool
     {
         if ($this->getIsNewRecord()) {
@@ -35,12 +25,7 @@ class ActiveRecord extends BaseActiveRecord
 
         return $this->update($runValidation, $attributeNames, $ttl) !== 0;
     }
-    /**
-     * @author Albert <63851587@qq.com>
-     * @param boolean $runValidation
-     * @param array $attributeNames
-     * @return integer
-     */
+
     public function update(bool $runValidation = true, array $attributeNames = null, float $ttl = 0): int
     {
         if ($runValidation && !$this->validate($attributeNames)) {
@@ -49,11 +34,7 @@ class ActiveRecord extends BaseActiveRecord
 
         return $this->updateInternal($attributeNames, $ttl);
     }
-    /**
-     * @author Albert <63851587@qq.com>
-     * @param array $attributes
-     * @return integer
-     */
+
     protected function updateInternal(array $attributes = null, float $ttl = 0): int
     {
         $values = $this->getDirtyAttributes($attributes);
@@ -68,7 +49,7 @@ class ActiveRecord extends BaseActiveRecord
         }
         // We do not check the return value of updateAll() because it's possible
         // that the UPDATE statement doesn't change anything and thus returns 0.
-        $rows = static::updateAll($values, $condition, $ttl);
+        $rows = $this->updateAll($values, $condition, $ttl);
 
         if ($lock !== null && !$rows) {
             throw new StaleObjectException('The object being updated is outdated.');
@@ -87,36 +68,21 @@ class ActiveRecord extends BaseActiveRecord
         return $rows;
     }
 
-    /**
-     * Updates the whole table using the provided attribute values and conditions.
-     * For example, to change the status to be 1 for all customers whose status is 2:
-     *
-     * ~~~
-     * Customer::updateAll(['status' => 1], ['id' => 2]);
-     * ~~~
-     *
-     * @param array $attributes attribute values (name-value pairs) to be saved into the table
-     * @param string $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
-     * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
-     * @return int the number of rows updated
-     * @throws InvalidArgumentException
-     * @throws Throwable
-     */
-    public static function updateAll(array $attributes, $condition = '', float $ttl = 0): int
+    public function updateAll(array $attributes, string|array $condition = '', float $ttl = 0): int
     {
         if (empty($attributes)) {
             return 0;
         }
         $n = 0;
         /** @var Redis $redis */
-        $redis = static::getDb();
+        $redis = $this->getDb();
         $redis(function ($conn) use (&$attributes, &$condition, &$n, $ttl) {
             $isCluster = $conn->getCluster();
-            $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-            $arr = self::fetchPks($condition);
+            $pkey = $isCluster ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
+            $arr = $this->fetchPks($condition);
             foreach ($arr as $pk) {
                 $newPk = $pk;
-                $pk = static::buildKey($pk);
+                $pk = $this->buildKey($pk);
                 $key = $pkey . ':a:' . $pk;
                 // save attributes
                 $delArgs = [$key];
@@ -135,7 +101,7 @@ class ActiveRecord extends BaseActiveRecord
                         $delArgs[] = $attribute;
                     }
                 }
-                $newPk = static::buildKey($newPk);
+                $newPk = $this->buildKey($newPk);
                 $newKey = $pkey . ':a:' . $newPk;
                 // rename index if pk changed
                 if ($newPk != $pk) {
@@ -167,19 +133,12 @@ class ActiveRecord extends BaseActiveRecord
         return $n;
     }
 
-    /**
-     * @param $condition
-     * @return array
-     * @throws Throwable
-     * @throws InvalidArgumentException
-     * @throws InvalidConfigException
-     */
-    private static function fetchPks($condition)
+    private function fetchPks(string|array $condition)
     {
-        $query = static::find();
+        $query = $this->find();
         $query->where($condition);
-        $records = $query->asArray()->all(); // TODO limit fetched columns to pk
-        $primaryKey = static::primaryKey();
+        $records = $query->all();
+        $primaryKey = $this->primaryKey();
 
         $pks = [];
         foreach ($records as $record) {
@@ -193,46 +152,24 @@ class ActiveRecord extends BaseActiveRecord
         return $pks;
     }
 
-    /**
-     * @inheritdoc
-     * @return ActiveQuery the newly created [[ActiveQuery]] instance.
-     * @throws DependencyException
-     * @throws NotFoundException
-     */
-    public static function find(): ActiveQuery
+    public function find(): ActiveQuery
     {
         return create(ActiveQuery::class, ['modelClass' => get_called_class()], false);
     }
 
-    /**
-     * Updates the whole table using the provided counter changes and conditions.
-     * For example, to increment all customers' age by 1,
-     *
-     * ~~~
-     * Customer::updateAllCounters(['age' => 1]);
-     * ~~~
-     *
-     * @param array $counters the counters to be updated (attribute name => increment value).
-     * Use negative values if you want to decrement the counters.
-     * @param string $condition the conditions that will be put in the WHERE part of the UPDATE SQL.
-     * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
-     * @return int the number of rows updated
-     * @throws InvalidArgumentException
-     * @throws Throwable
-     */
-    public static function updateAllCounters(array $counters, $condition = '', float $ttl = 0): int
+    public function updateAllCounters(array $counters, string|array $condition = '', float $ttl = 0): int
     {
         if (empty($counters)) {
             return 0;
         }
         $n = 0;
         /** @var Redis $redis */
-        $redis = static::getDb();
+        $redis = $this->getDb();
         $redis(function ($conn) use (&$counters, &$condition, &$n, $ttl) {
-            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
-            $arr = self::fetchPks($condition);
+            $pkey = $conn->getCluster() ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
+            $arr = $this->fetchPks($condition);
             foreach ($arr as $pk) {
-                $key = $pkey . ':a:' . static::buildKey($pk);
+                $key = $pkey . ':a:' . $this->buildKey($pk);
                 foreach ($counters as $attribute => $value) {
                     $conn->executeCommand('HINCRBY', [$key, $attribute, $value]);
                 }
@@ -243,38 +180,21 @@ class ActiveRecord extends BaseActiveRecord
         return $n;
     }
 
-    /**
-     * Deletes rows in the table using the provided conditions.
-     * WARNING: If you do not specify any condition, this method will delete ALL rows in the table.
-     *
-     * For example, to delete all customers whose status is 3:
-     *
-     * ~~~
-     * Customer::deleteAll(['status' => 3]);
-     * ~~~
-     *
-     * @param array $condition the conditions that will be put in the WHERE part of the DELETE SQL.
-     * Please refer to [[ActiveQuery::where()]] on how to specify this parameter.
-     * @return int the number of rows deleted
-     * @throws InvalidArgumentException
-     * @throws InvalidConfigException
-     * @throws Throwable
-     */
-    public static function deleteAll($condition = null): int
+    public function deleteAll(string|array $condition = null): int
     {
-        $pks = self::fetchPks($condition);
+        $pks = $this->fetchPks($condition);
         if (empty($pks)) {
             return 0;
         }
         /** @var Redis $redis */
-        $redis = static::getDb();
+        $redis = $this->getDb();
         $result = $redis(function ($conn) use (&$pks) {
             $attributeKeys = [];
             $isCluster = $conn->getCluster();
-            $pkey = $isCluster ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $pkey = $isCluster ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
             !$isCluster && $conn->executeCommand('MULTI');
             foreach ($pks as $pk) {
-                $pk = static::buildKey($pk);
+                $pk = $this->buildKey($pk);
                 $conn->executeCommand('LREM', [$pkey, 0, $pk]);
 
                 $attributeKeys[] = $pkey . ':a:' . $pk;
@@ -286,23 +206,11 @@ class ActiveRecord extends BaseActiveRecord
         return (int)end($result);
     }
 
-    /**
-     * Returns the list of all attribute names of the model.
-     * This method must be overridden by child classes to define available attributes.
-     * @return array list of attribute names.
-     * @throws InvalidConfigException
-     */
     public function attributes(): array
     {
         throw new InvalidConfigException('The attributes() method of redis ActiveRecord has to be implemented by child classes.');
     }
 
-    /**
-     * @param bool $runValidation
-     * @param array|null $attributes
-     * @return bool
-     * @throws Throwable
-     */
     public function insert(bool $runValidation = true, array $attributes = null, float $ttl = 0): bool
     {
         if ($runValidation && !$this->validate($attributes)) {
@@ -310,10 +218,10 @@ class ActiveRecord extends BaseActiveRecord
         }
         $values = $this->getDirtyAttributes($attributes);
         /** @var Redis $redis */
-        $redis = static::getDb();
+        $redis = $this->getDb();
         $redis(function ($conn) use (&$values, $ttl) {
             $pk = [];
-            $pkey = $conn->getCluster() ? '{' . static::keyPrefix() . '}' : static::keyPrefix();
+            $pkey = $conn->getCluster() ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
             foreach ($this->primaryKey() as $key) {
                 $pk[$key] = $values[$key] = $this->getAttribute($key);
                 if ($pk[$key] === null) {
@@ -329,7 +237,7 @@ class ActiveRecord extends BaseActiveRecord
                 }
             }
             // save pk in a findall pool
-            $pk = static::buildKey($pk);
+            $pk = $this->buildKey($pk);
             $conn->executeCommand('RPUSH', [$pkey, $pk]);
 
             $key = $pkey . ':a:' . $pk;
@@ -356,50 +264,22 @@ class ActiveRecord extends BaseActiveRecord
         return true;
     }
 
-    /**
-     * Returns the database connection used by this AR class.
-     * By default, the "redis" application component is used as the database connection.
-     * You may override this method if you want to use a different database connection.
-     * @return ConnectionInterface the database connection used by this AR class.
-     * @throws Throwable
-     */
-    public static function getDb(): ConnectionInterface
+    public function getDb(): ConnectionInterface
     {
         return getDI('redis')->get();
     }
 
-    /**
-     * Returns the primary key name(s) for this AR class.
-     * This method should be overridden by child classes to define the primary key.
-     *
-     * Note that an array should be returned even when it is a single primary key.
-     *
-     * @return string[] the primary keys of this record.
-     */
-    public static function primaryKey(): array
+    public function primaryKey(): array
     {
         return ['id'];
     }
 
-    /**
-     * Declares prefix of the key that represents the keys that store this records in redis.
-     * By default this method returns the class name as the table name by calling [[Inflector::camel2id()]].
-     * For example, 'Customer' becomes 'customer', and 'OrderItem' becomes
-     * 'order_item'. You may override this method if you want different key naming.
-     * @return string the prefix to apply to all AR keys
-     */
-    public static function keyPrefix(): string
+    public function keyPrefix(): string
     {
         return Inflector::camel2id(StringHelper::basename(get_called_class()), '_');
     }
 
-    /**
-     * Builds a normalized key from a given primary key value.
-     *
-     * @param mixed $key the key to be normalized
-     * @return string the generated key
-     */
-    public static function buildKey($key): string
+    public function buildKey($key): string
     {
         if (is_numeric($key)) {
             return (string)$key;
@@ -407,7 +287,7 @@ class ActiveRecord extends BaseActiveRecord
             return ctype_alnum($key) && StringHelper::byteLength($key) <= 32 ? $key : md5($key);
         } elseif (is_array($key)) {
             if (count($key) == 1) {
-                return self::buildKey(reset($key));
+                return $this->buildKey(reset($key));
             }
             ksort($key); // ensure order is always the same
             $isNumeric = true;

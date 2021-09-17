@@ -39,11 +39,6 @@ class Predis extends AbstractConnection
         $this->cluster = (bool)ArrayHelper::getValue($config, 'cluster', false);
     }
 
-    /**
-     * @param string $uri
-     * @return array
-     * @throws Exception
-     */
     protected function parseUri(string $uri): array
     {
         $parseAry = parse_url($uri);
@@ -61,12 +56,7 @@ class Predis extends AbstractConnection
         return $options;
     }
 
-    /**
-     * @param string $name
-     * @param array $params
-     * @return mixed
-     */
-    public function executeCommand(string $name, array $params = [])
+    public function executeCommand(string $name, array $params = []): null|array|string|float|int|bool
     {
         $retries = $this->getPool()->getPoolConfig()->getMaxRetry();
         $retries = $retries > 0 ? $retries : 1;
@@ -85,9 +75,6 @@ class Predis extends AbstractConnection
         }
     }
 
-    /**
-     * @throws Throwable
-     */
     public function reconnect(): void
     {
         App::warning("predis reconnecting...");

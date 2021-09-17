@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis\Pool;
@@ -20,7 +21,7 @@ class RedisPool extends ConnectionPool
     /**
      * @return mixed
      */
-    public function create()
+    public function create(): object
     {
         return new $this->connection($this->getPoolConfig()->getName());
     }

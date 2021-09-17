@@ -13,24 +13,14 @@ use Throwable;
  */
 class Cache extends AbstractCache implements CacheInterface
 {
-    /** @var Redis */
     private ?Redis $client;
 
-    /**
-     * Cache constructor.
-     * @throws Throwable
-     */
     public function __construct()
     {
         parent::__construct();
         $this->client = getDI('redis')->get();
     }
 
-    /**
-     * @param string $key
-     * @param null $default
-     * @return mixed|null
-     */
     public function get($key, $default = null)
     {
         $key = $this->buildKey($key);
@@ -42,12 +32,6 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    /**
-     * @param string $key
-     * @param mixed $value
-     * @param null $ttl
-     * @return bool
-     */
     public function set($key, $value, $ttl = null)
     {
         $key = $this->buildKey($key);
@@ -60,29 +44,17 @@ class Cache extends AbstractCache implements CacheInterface
         }
     }
 
-    /**
-     * @param string $key
-     * @return bool
-     */
     public function delete($key)
     {
         $this->buildKey($key);
         return (bool)$this->client->executeCommand('DEL', [$key]);
     }
 
-    /**
-     * @return bool
-     */
     public function clear()
     {
         return $this->client->executeCommand('FLUSHDB');
     }
 
-    /**
-     * @param iterable $keys
-     * @param null $default
-     * @return array|iterable|null
-     */
     public function getMultiple($keys, $default = null)
     {
         $newKeys = [];
@@ -99,11 +71,6 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    /**
-     * @param iterable $values
-     * @param null $ttl
-     * @return bool
-     */
     public function setMultiple($values, $ttl = null)
     {
         $args = [];
@@ -137,10 +104,6 @@ class Cache extends AbstractCache implements CacheInterface
         return count($failedKeys) === 0;
     }
 
-    /**
-     * @param iterable $keys
-     * @return bool
-     */
     public function deleteMultiple($keys)
     {
         $newKeys = [];
@@ -150,10 +113,6 @@ class Cache extends AbstractCache implements CacheInterface
         return (bool)$this->client->executeCommand('DEL', $newKeys);
     }
 
-    /**
-     * @param string $key
-     * @return bool
-     */
     public function has($key)
     {
         return (bool)$this->client->executeCommand('EXISTS', [$this->buildKey($key)]);

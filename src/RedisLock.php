@@ -16,26 +16,13 @@ use Throwable;
  */
 class RedisLock implements LockInterface
 {
-    /** @var Redis */
     protected ?Redis $redis;
 
-    /**
-     * RedisLock constructor.
-     * @param Redis|null $redis
-     * @throws Throwable
-     */
     public function __construct(Redis $redis = null)
     {
         $this->redis = $redis ?? getDI('redis')->get();
     }
 
-    /**
-     * @param Closure $function
-     * @param string $name
-     * @param float|int $timeout
-     * @return bool|mixed
-     * @throws Throwable
-     */
     public function __invoke(Closure $function, bool $next = true, string $name = '', float $timeout = 600)
     {
         $name = "lock:" . (empty($name) ? uniqid() : $name);

@@ -7,34 +7,20 @@ namespace Rabbit\DB\Redis;
 use Exception;
 use Throwable;
 use Rabbit\Base\App;
+use Rabbit\Base\Core\Channel;
 
-/**
- * Class SentinelsManager
- * @package rabbit\db\redis
- */
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
     protected  $channel;
-    /** @var int */
     protected int $current = 0;
 
-    /**
-     * SentinelsManager constructor.
-     */
     public function __construct(int $size = 3)
     {
-        $this->channel = makeChannel($size);
+        $this->channel = new Channel($size);
     }
 
-    /**
-     * @param array $sentinels
-     * @param string $type
-     * @param string $masterName
-     * @return mixed
-     * @throws Throwable
-     */
-    public function discover(array $sentinels, string $type, string $masterName = 'mymaster')
+    public function discover(array $sentinels, string $type, string $masterName = 'mymaster'): array
     {
         $size = count($sentinels);
         // $this->channel->capacity = $size;

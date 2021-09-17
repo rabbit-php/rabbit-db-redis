@@ -69,12 +69,6 @@ class PhpRedis extends AbstractConnection
         }
     }
 
-    /**
-     * @param string $uri
-     * @param array $parseAry
-     * @return array
-     * @throws Exception
-     */
     protected function parseUri(string $uri, array &$parseAry): array
     {
         $parseAry = parse_url($uri);
@@ -91,24 +85,13 @@ class PhpRedis extends AbstractConnection
         (isset($parseAry['path']) && !isset($options['cluster'])) && $options['parameters']['database'] = str_replace('/', '', $parseAry['path']);
         return $options;
     }
-    /**
-     * @Author Albert 63851587@qq.com
-     * @DateTime 2020-10-22
-     * @param [type] $name
-     * @param [type] $arguments
-     * @return void
-     */
+
     public function __call($name, $arguments)
     {
         return $this->executeCommand($name, $arguments);
     }
 
-    /**
-     * @param string $name
-     * @param array $args
-     * @return mixed
-     */
-    public function executeCommand(string $name, array $args = [])
+    public function executeCommand(string $name, array $args = []): null|array|string|float|int|bool
     {
         $retries = $this->getPool()->getPoolConfig()->getMaxRetry();
         $retries = $retries > 0 ? $retries : 1;
@@ -150,10 +133,6 @@ class PhpRedis extends AbstractConnection
         }
     }
 
-    /**
-     * @throws Exception
-     * @throws RedisClusterException
-     */
     public function reconnect(): void
     {
         $this->createConnection();

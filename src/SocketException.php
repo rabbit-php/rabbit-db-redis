@@ -11,9 +11,6 @@ use Rabbit\Base\Core\Exception;
  */
 class SocketException extends Exception
 {
-    /**
-     * @return string the user-friendly name of this exception
-     */
     public function getName(): string
     {
         return 'Redis Socket Exception';

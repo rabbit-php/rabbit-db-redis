@@ -11,40 +11,22 @@ use Rabbit\Pool\PoolProperties;
  */
 class RedisPoolConfig extends PoolProperties
 {
-    /**
-     * @var int
-     */
     protected int $db = 0;
 
-    /**
-     * @var string
-     */
     protected string $prefix = '';
 
-    /**
-     * @var bool
-     */
     protected bool $isSerialize = false;
 
-    /**
-     * @return bool
-     */
     public function getSerialize(): bool
     {
         return $this->isSerialize;
     }
 
-    /**
-     * @return int
-     */
     public function getDb(): int
     {
         return $this->db;
     }
 
-    /**
-     * @return string
-     */
     public function getPrefix(): string
     {
         return $this->prefix;

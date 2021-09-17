@@ -77,20 +77,11 @@ class Redis implements ConnectionInterface
         'SORT',
     ];
 
-    /**
-     * Redis constructor.
-     * @param PoolInterface $pool
-     */
     public function __construct(PoolInterface $pool)
     {
         $this->pool = $pool;
     }
 
-    /**
-     * @param Closure $function
-     * @return mixed
-     * @throws Throwable
-     */
     public function __invoke(\Closure $function)
     {
         $conn = $this->pool->get();
@@ -104,20 +95,11 @@ class Redis implements ConnectionInterface
         }
     }
 
-    /**
-     * @return PoolInterface
-     */
     public function getPool(): PoolInterface
     {
         return $this->pool;
     }
 
-    /**
-     * @param $method
-     * @param $arguments
-     * @return mixed
-     * @throws Throwable
-     */
     public function __call($method, $arguments)
     {
         $client = $this->pool->get();
@@ -131,12 +113,6 @@ class Redis implements ConnectionInterface
         }
     }
 
-    /**
-     * @param array $config
-     * @param string $type
-     * @return array
-     * @throws Throwable
-     */
     public static function getCurrent(array $config, string $type): array
     {
         if (isset($config['sentinel']) && (int)$config['sentinel'] === 1) {
@@ -168,12 +144,7 @@ class Redis implements ConnectionInterface
         $port = (int)$config['port'];
         return [$host, $port];
     }
-    /**
-     * @Author Albert 63851587@qq.com
-     * @DateTime 2020-10-22
-     * @param array $data
-     * @return array
-     */
+
     public static function parseData(array $data): array
     {
         $row = [];
@@ -184,12 +155,6 @@ class Redis implements ConnectionInterface
         return $row;
     }
 
-    /**
-     * @Author Albert 63851587@qq.com
-     * @DateTime 2020-10-22
-     * @param array $data
-     * @return array
-     */
     public static function parseStream(array $data): array
     {
         $row = [];
@@ -199,12 +164,7 @@ class Redis implements ConnectionInterface
         }
         return $row;
     }
-    /**
-     * @Author Albert 63851587@qq.com
-     * @DateTime 2020-10-22
-     * @param array $data
-     * @return array
-     */
+
     public static function parseMsg(array $data): array
     {
         $row = [];
@@ -214,26 +174,16 @@ class Redis implements ConnectionInterface
         return $row;
     }
 
-    /**
-     * @throws NotSupportedException
-     */
     public function createConnection(): void
     {
         throw new NotSupportedException("Redis Manager not support " . __METHOD__);
     }
 
-    /**
-     * @throws NotSupportedException
-     */
     public function reconnect(): void
     {
         throw new NotSupportedException("Redis Manager not support " . __METHOD__);
     }
 
-    /**
-     * @param bool $release
-     * @throws NotSupportedException
-     */
     public function release($release = false): void
     {
         throw new NotSupportedException("Redis Manager not support " . __METHOD__);

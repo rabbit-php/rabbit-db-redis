@@ -14,26 +14,20 @@ use Rabbit\Base\App;
  */
 class SentinelConnection
 {
-    /** @var string */
     public string $hostname = 'localhost';
-    /** @var string */
+
     public string $masterName = 'mymaster';
-    /** @var int */
+
     public int $port = 26379;
-    /** @var float */
+
     public ?float $connectionTimeout;
 
     public ?string $unixSocket = null;
-    /** @var Client */
+
     protected ?Client $_socket = null;
-    /** @var int */
+
     public int $retry = 3;
 
-
-    /**
-     * @return bool
-     * @throws Throwable
-     */
     protected function open(): bool
     {
         if ($this->_socket !== null && $this->_socket->connected) {
@@ -58,9 +52,6 @@ class SentinelConnection
         return false;
     }
 
-    /**
-     * @return bool
-     */
     public function close(): bool
     {
         $res = (bool)$this->_socket->close();
@@ -68,11 +59,7 @@ class SentinelConnection
         return $res;
     }
 
-    /**
-     * @return array|bool|false|string|null
-     * @throws Throwable
-     */
-    public function getMaster()
+    public function getMaster(): array|bool|string|null
     {
         if ($this->open()) {
             return $this->executeCommand(
@@ -87,11 +74,7 @@ class SentinelConnection
         }
     }
 
-    /**
-     * @return array|bool|false|string|null
-     * @throws Throwable
-     */
-    public function getSlave()
+    public function getSlave(): array|bool|string|null
     {
         if ($this->open()) {
             return $this->executeCommand('sentinel', [
@@ -103,13 +86,7 @@ class SentinelConnection
         }
     }
 
-    /**
-     * @param string $name
-     * @param array $params
-     * @return array|bool|false|string|null
-     * @throws Throwable
-     */
-    public function executeCommand(string $name, array $params)
+    public function executeCommand(string $name, array $params): array|bool|string|null
     {
         if (!$this->_socket->connected) {
             $this->open();
@@ -141,12 +118,7 @@ class SentinelConnection
         throw new SocketException("Failed to read from socket.\nRedis command was: " . implode(' ', $params));
     }
 
-    /**
-     * @param string $command
-     * @return array|bool|false|string|null
-     * @throws SocketException
-     */
-    public function parseResponse(string $command)
+    public function parseResponse(string $command): array|bool|string|null
     {
         if (($line = $this->_socket->recv()) === false) {
             throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);

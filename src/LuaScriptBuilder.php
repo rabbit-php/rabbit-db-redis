@@ -8,7 +8,6 @@ use Rabbit\Base\Exception\InvalidArgumentException;
 use Rabbit\Base\Exception\NotSupportedException;
 use Rabbit\DB\Exception;
 use Rabbit\DB\Expression;
-use Throwable;
 
 /**
  * Class LuaScriptBuilder
@@ -16,29 +15,12 @@ use Throwable;
  */
 class LuaScriptBuilder
 {
-    /**
-     * Builds a Lua script for finding a list of records
-     * @param ActiveQuery $query the query used to build the script
-     * @return string
-     * @throws Throwable
-     */
     public function buildAll(ActiveQuery $query): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
-
+        $key = $this->getKey($query);
         return $this->build($query, "n=n+1 pks[n]=redis.call('HGETALL',$key .. pk)", 'pks');
     }
 
-    /**
-     * Quotes a string value for use in a query.
-     * Note that if the parameter is not a string or int, it will be returned without change.
-     * @param string $str string to be quoted
-     * @return string the properly quoted string
-     */
     private function quoteValue($str): string
     {
         if (!is_string($str) && !is_int($str)) {
@@ -48,13 +30,6 @@ class LuaScriptBuilder
         return "'" . addcslashes((string)$str, "\000\n\r\\\032\047") . "'";
     }
 
-    /**
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $buildResult the lua script for building the result
-     * @param string $return the lua variable that should be returned
-     * @return string
-     * @throws NotSupportedException when query contains unsupported order by condition
-     */
     private function build(ActiveQuery $query, string $buildResult, string $return): string
     {
         $columns = [];
@@ -66,12 +41,7 @@ class LuaScriptBuilder
 
         $start = ($query->offset === null || $query->offset < 0) ? 0 : $query->offset;
         $limitCondition = 'i>' . $start . (($query->limit === null || $query->limit < 0) ? '' : ' and i<=' . ($start + $query->limit));
-
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey);
+        $key = $this->getKey($query);
         $loadColumnValues = '';
         foreach ($columns as $column => $alias) {
             $loadColumnValues .= "local $alias=redis.call('HGET',$key .. ':a:' .. pk, " . $this->quoteValue($column) . ")\n";
@@ -125,16 +95,7 @@ return $return
 EOF;
     }
 
-    /**
-     * Parses the condition specification and generates the corresponding Lua expression.
-     * @param string|array $condition the condition specification. Please refer to [[ActiveQuery::where()]]
-     * on how to specify a condition.
-     * @param array $columns the list of columns and aliases to be used
-     * @return string the generated SQL expression
-     * @throws \rabbit\db\Exception if the condition is in bad format
-     * @throws \rabbit\exception\NotSupportedException if the condition is not an array
-     */
-    public function buildCondition($condition, array &$columns): string
+    public function buildCondition(string|array $condition, array &$columns): string
     {
         static $builders = [
             'not' => 'buildNotCondition',
@@ -173,12 +134,6 @@ EOF;
         }
     }
 
-    /**
-     * @param array $condition
-     * @param array $columns
-     * @return string
-     * @throws Exception
-     */
     private function buildHashCondition(array $condition, array &$columns): string
     {
         $parts = [];
@@ -205,13 +160,6 @@ EOF;
         return count($parts) === 1 ? $parts[0] : '(' . implode(') and (', $parts) . ')';
     }
 
-    /**
-     * @param string $operator
-     * @param array $operands
-     * @param array $columns
-     * @return string
-     * @throws Exception
-     */
     private function buildInCondition(string $operator, array $operands, array &$columns)
     {
         if (!isset($operands[0], $operands[1])) {
@@ -251,13 +199,6 @@ EOF;
         return "$operator(" . implode(' or ', $parts) . ')';
     }
 
-    /**
-     * @param string $operator
-     * @param array $inColumns
-     * @param array $values
-     * @param array $columns
-     * @return string
-     */
     protected function buildCompositeInCondition(
         string $operator,
         array $inColumns,
@@ -282,12 +223,6 @@ EOF;
         return "$operator(" . implode(' or ', $vss) . ')';
     }
 
-    /**
-     * Adds a column to the list of columns to retrieve and creates an alias
-     * @param string $column the column name to add
-     * @param array $columns list of columns given by reference
-     * @return string the alias generated for the column name
-     */
     private function addColumn(string $column, array &$columns): string
     {
         if (isset($columns[$column])) {
@@ -298,36 +233,15 @@ EOF;
         return $columns[$column] = $name;
     }
 
-    /**
-     * Builds a Lua script for finding one record
-     * @param ActiveQuery $query the query used to build the script
-     * @return string
-     */
     public function buildOne(ActiveQuery $query): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
-
+        $key = $this->getKey($query);
         return $this->build($query, "do return redis.call('HGETALL',$key .. pk) end", 'pks');
     }
 
-    /**
-     * Builds a Lua script for finding a column
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $column name of the column
-     * @return string
-     */
     public function buildColumn(ActiveQuery $query, string $column): string
     {
-        // TODO add support for indexBy
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
+        $key = $this->getKey($query);
 
         return $this->build(
             $query,
@@ -336,46 +250,21 @@ EOF;
         );
     }
 
-    /**
-     * Builds a Lua script for getting count of records
-     * @param ActiveQuery $query the query used to build the script
-     * @return string
-     */
     public function buildCount(ActiveQuery $query): string
     {
         return $this->build($query, 'n=n+1', 'n');
     }
 
-    /**
-     * Builds a Lua script for finding the sum of a column
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $column name of the column
-     * @return string
-     */
     public function buildSum(ActiveQuery $query, string $column): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
+        $key = $this->getKey($query);
 
         return $this->build($query, "n=n+redis.call('HGET',$key .. pk," . $this->quoteValue($column) . ")", 'n');
     }
 
-    /**
-     * Builds a Lua script for finding the average of a column
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $column name of the column
-     * @return string
-     */
     public function buildAverage(ActiveQuery $query, string $column): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
+        $key = $this->getKey($query);
 
         return $this->build(
             $query,
@@ -384,19 +273,9 @@ EOF;
         );
     }
 
-    /**
-     * Builds a Lua script for finding the min value of a column
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $column name of the column
-     * @return string
-     */
     public function buildMin(ActiveQuery $query, string $column): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
+        $key = $this->getKey($query);
 
         return $this->build(
             $query,
@@ -405,19 +284,9 @@ EOF;
         );
     }
 
-    /**
-     * Builds a Lua script for finding the max value of a column
-     * @param ActiveQuery $query the query used to build the script
-     * @param string $column name of the column
-     * @return string
-     */
     public function buildMax(ActiveQuery $query, string $column): string
     {
-        /* @var $modelClass ActiveRecord */
-        $modelClass = $query->modelClass;
-        $db = $query->db;
-        $pkey = $db->getCluster() ? '{' . $modelClass::keyPrefix() . '}' : $modelClass::keyPrefix();
-        $key = $this->quoteValue($pkey . ':a:');
+        $key = $this->getKey($query);
 
         return $this->build(
             $query,
@@ -426,14 +295,6 @@ EOF;
         );
     }
 
-    /**
-     * @param string $operator
-     * @param array $operands
-     * @param array $params
-     * @return string
-     * @throws Exception
-     * @throws NotSupportedException
-     */
     private function buildNotCondition(string $operator, array $operands, array &$params): string
     {
         if (count($operands) != 1) {
@@ -448,14 +309,6 @@ EOF;
         return "$operator ($operand)";
     }
 
-    /**
-     * @param string $operator
-     * @param array $operands
-     * @param array $columns
-     * @return string
-     * @throws Exception
-     * @throws NotSupportedException
-     */
     private function buildAndCondition(string $operator, array $operands, array &$columns): string
     {
         $parts = [];
@@ -474,13 +327,6 @@ EOF;
         }
     }
 
-    /**
-     * @param string $operator
-     * @param array $operands
-     * @param array $columns
-     * @return string
-     * @throws Exception
-     */
     private function buildBetweenCondition(string $operator, array $operands, array &$columns): string
     {
         if (!isset($operands[0], $operands[1], $operands[2])) {
@@ -513,14 +359,17 @@ EOF;
         return "$column $operator $value";
     }
 
-    /**
-     * @param string $operator
-     * @param array $operands
-     * @param array $columns
-     * @throws NotSupportedException
-     */
     private function buildLikeCondition(string $operator, array $operands, array &$columns)
     {
         throw new NotSupportedException('LIKE conditions are not suppoerted by redis ActiveRecord.');
+    }
+
+    private function getKey(ActiveQuery $query): string
+    {
+        /* @var $modelClass ActiveRecord */
+        $modelClass = create($query->modelClass);
+        $db = $query->db;
+        $pkey = $db->getCluster() ? '{' . $modelClass->keyPrefix() . '}' : $modelClass->keyPrefix();
+        return $this->quoteValue($pkey . ':a:');
     }
 }
