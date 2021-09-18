@@ -12,7 +12,7 @@ use Rabbit\Base\Core\Channel;
 class SentinelsManager
 {
     const LOG_KEY = 'redis';
-    protected  $channel;
+    protected Channel $channel;
     protected int $current = 0;
 
     public function __construct(int $size = 3)
