@@ -73,7 +73,7 @@ class Connection extends AbstractConnection
             $type = '_socket';
         }
         $this->parseParams($params, $tmp);
-        $params = array_merge(explode(' ', $name), $tmp);
+        $params = [...explode(' ', $name), ...$tmp];
         $command = '*' . count($params) . "\r\n";
         foreach ($params as $arg) {
             $command .= '$' . mb_strlen((string)$arg, '8bit') . "\r\n" . $arg . "\r\n";
@@ -112,7 +112,7 @@ class Connection extends AbstractConnection
             } elseif (is_int($index)) {
                 $tmp[] = $item;
             } else {
-                $tmp = array_merge($tmp, [$index, $item]);
+                $tmp = [...$tmp, $index, $item];
             }
         }
     }
@@ -183,7 +183,7 @@ class Connection extends AbstractConnection
         isset($parseAry['path']) && $parseAry['db'] = str_replace('/', '', $parseAry['path']);
         $query = $parseAry['query'] ?? '';
         parse_str($query, $options);
-        $configs = array_merge($parseAry, $options);
+        $configs = [...$parseAry, ...$options];
         unset($configs['path']);
         unset($configs['query']);
 

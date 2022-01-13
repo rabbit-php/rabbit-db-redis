@@ -91,7 +91,7 @@ class SentinelConnection
         if (!$this->_socket->connected) {
             $this->open();
         }
-        $params = array_merge(explode(' ', $name), $params);
+        $params = [...explode(' ', $name), ...$params];
         $command = '*' . count($params) . "\r\n";
         foreach ($params as $arg) {
             $command .= '$' . mb_strlen($arg, '8bit') . "\r\n" . $arg . "\r\n";
