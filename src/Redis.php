@@ -19,7 +19,6 @@ class Redis implements ConnectionInterface
 {
     const CONN_MASTER = 'master';
     const CONN_SLAVE = 'slave';
-    protected PoolInterface $pool;
 
     const READ_COMMAND = [
         'DBSIZE',
@@ -77,9 +76,8 @@ class Redis implements ConnectionInterface
         'SORT',
     ];
 
-    public function __construct(PoolInterface $pool)
+    public function __construct(protected PoolInterface $pool)
     {
-        $this->pool = $pool;
     }
 
     public function __invoke(\Closure $function)

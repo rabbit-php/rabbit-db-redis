@@ -14,9 +14,9 @@ use Throwable;
  * Class RedisLock
  * @package Rabbit\DB\Redis
  */
-class RedisLock implements LockInterface
+final class RedisLock implements LockInterface
 {
-    protected ?Redis $redis;
+    protected readonly ?Redis $redis;
 
     public function __construct(Redis $redis = null)
     {
