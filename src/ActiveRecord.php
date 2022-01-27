@@ -9,6 +9,7 @@ use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Helper\Inflector;
 use Rabbit\Base\Helper\StringHelper;
 use Rabbit\DB\StaleObjectException;
+use Rabbit\Pool\AbstractConnection;
 use Rabbit\Pool\ConnectionInterface;
 
 /**
@@ -76,7 +77,7 @@ class ActiveRecord extends BaseActiveRecord
         $n = 0;
         /** @var Redis $redis */
         $redis = $this->getDb();
-        $redis(function ($conn) use (&$attributes, &$condition, &$n, $ttl) {
+        $redis(function (AbstractConnection $conn) use (&$attributes, &$condition, &$n, $ttl): void {
             $isCluster = $conn->getCluster();
             $pkey = $isCluster ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
             $arr = $this->fetchPks($condition);
@@ -165,7 +166,7 @@ class ActiveRecord extends BaseActiveRecord
         $n = 0;
         /** @var Redis $redis */
         $redis = $this->getDb();
-        $redis(function ($conn) use (&$counters, &$condition, &$n, $ttl) {
+        $redis(function (AbstractConnection $conn) use (&$counters, &$condition, &$n, $ttl): void {
             $pkey = $conn->getCluster() ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
             $arr = $this->fetchPks($condition);
             foreach ($arr as $pk) {
@@ -188,7 +189,7 @@ class ActiveRecord extends BaseActiveRecord
         }
         /** @var Redis $redis */
         $redis = $this->getDb();
-        $result = $redis(function ($conn) use (&$pks) {
+        $result = $redis(function (AbstractConnection $conn) use (&$pks): array {
             $attributeKeys = [];
             $isCluster = $conn->getCluster();
             $pkey = $isCluster ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
@@ -219,7 +220,7 @@ class ActiveRecord extends BaseActiveRecord
         $values = $this->getDirtyAttributes($attributes);
         /** @var Redis $redis */
         $redis = $this->getDb();
-        $redis(function ($conn) use (&$values, $ttl) {
+        $redis(function (AbstractConnection $conn) use (&$values, $ttl): void {
             $pk = [];
             $pkey = $conn->getCluster() ? '{' . $this->keyPrefix() . '}' : $this->keyPrefix();
             foreach ($this->primaryKey() as $key) {
