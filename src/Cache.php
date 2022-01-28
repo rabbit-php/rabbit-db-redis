@@ -1,11 +1,11 @@
 <?php
+
 declare(strict_types=1);
 
 namespace Rabbit\DB\Redis;
 
 use Psr\SimpleCache\CacheInterface;
 use Rabbit\Cache\AbstractCache;
-use Throwable;
 
 /**
  * Class Cache
@@ -21,7 +21,7 @@ class Cache extends AbstractCache implements CacheInterface
         $this->client = getDI('redis')->get();
     }
 
-    public function get($key, $default = null)
+    public function get(string $key, mixed $default = null): mixed
     {
         $key = $this->buildKey($key);
         $result = $this->client->executeCommand('GET', [$key]);
@@ -32,30 +32,28 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    public function set($key, $value, $ttl = null)
+    public function set(string $key, mixed $value, null|int|\DateInterval $ttl = null): bool
     {
         $key = $this->buildKey($key);
         if ($ttl === null) {
             return (bool)$this->client->executeCommand('SET', [$key, $value]);
         } else {
-            $ttl = (int)($ttl * 1000);
-
-            return (bool)$this->client->executeCommand('SET', [$key, $value, 'PX', $ttl]);
+            return (bool)$this->client->executeCommand('SET', [$key, $value, 'EX', $ttl]);
         }
     }
 
-    public function delete($key)
+    public function delete(string $key): bool
     {
         $this->buildKey($key);
         return (bool)$this->client->executeCommand('DEL', [$key]);
     }
 
-    public function clear()
+    public function clear(): bool
     {
         return $this->client->executeCommand('FLUSHDB');
     }
 
-    public function getMultiple($keys, $default = null)
+    public function getMultiple(iterable $keys, mixed $default = null): iterable
     {
         $newKeys = [];
         foreach ($keys as $key) {
@@ -71,7 +69,7 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    public function setMultiple($values, $ttl = null)
+    public function setMultiple(iterable $values, null|int|\DateInterval $ttl = null): bool
     {
         $args = [];
         foreach ($values as $key => $value) {
@@ -99,12 +97,10 @@ class Cache extends AbstractCache implements CacheInterface
                 }
             }
         }
-
-        // FIXME: Where do we access failed keys from ?
         return count($failedKeys) === 0;
     }
 
-    public function deleteMultiple($keys)
+    public function deleteMultiple(iterable $keys): bool
     {
         $newKeys = [];
         foreach ($keys as $key) {
@@ -113,7 +109,7 @@ class Cache extends AbstractCache implements CacheInterface
         return (bool)$this->client->executeCommand('DEL', $newKeys);
     }
 
-    public function has($key)
+    public function has(string $key): bool
     {
         return (bool)$this->client->executeCommand('EXISTS', [$this->buildKey($key)]);
     }
