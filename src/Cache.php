@@ -21,7 +21,7 @@ class Cache extends AbstractCache implements CacheInterface
         $this->client = getDI('redis')->get();
     }
 
-    public function get(string $key, mixed $default = null): mixed
+    public function get($key, mixed $default = null): mixed
     {
         $key = $this->buildKey($key);
         $result = $this->client->executeCommand('GET', [$key]);
@@ -32,7 +32,7 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    public function set(string $key, mixed $value, null|int|\DateInterval $ttl = null): bool
+    public function set($key, mixed $value, $ttl = null): bool
     {
         $key = $this->buildKey($key);
         if ($ttl === null) {
@@ -42,7 +42,7 @@ class Cache extends AbstractCache implements CacheInterface
         }
     }
 
-    public function delete(string $key): bool
+    public function delete($key): bool
     {
         $this->buildKey($key);
         return (bool)$this->client->executeCommand('DEL', [$key]);
@@ -53,7 +53,7 @@ class Cache extends AbstractCache implements CacheInterface
         return $this->client->executeCommand('FLUSHDB');
     }
 
-    public function getMultiple(iterable $keys, mixed $default = null): iterable
+    public function getMultiple($keys, mixed $default = null): iterable
     {
         $newKeys = [];
         foreach ($keys as $key) {
@@ -69,7 +69,7 @@ class Cache extends AbstractCache implements CacheInterface
         return $result;
     }
 
-    public function setMultiple(iterable $values, null|int|\DateInterval $ttl = null): bool
+    public function setMultiple($values, $ttl = null): bool
     {
         $args = [];
         foreach ($values as $key => $value) {
@@ -100,7 +100,7 @@ class Cache extends AbstractCache implements CacheInterface
         return count($failedKeys) === 0;
     }
 
-    public function deleteMultiple(iterable $keys): bool
+    public function deleteMultiple($keys): bool
     {
         $newKeys = [];
         foreach ($keys as $key) {
@@ -109,7 +109,7 @@ class Cache extends AbstractCache implements CacheInterface
         return (bool)$this->client->executeCommand('DEL', $newKeys);
     }
 
-    public function has(string $key): bool
+    public function has($key): bool
     {
         return (bool)$this->client->executeCommand('EXISTS', [$this->buildKey($key)]);
     }
