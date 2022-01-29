@@ -31,7 +31,7 @@ class MakeConnection
     ): void
     {
         /** @var BaseManager $manager */
-        $manager = getDI('redis');
+        $manager = service('redis');
         if (!$manager->has($name)) {
             [
                 $min,
@@ -46,12 +46,12 @@ class MakeConnection
             ]);
             $conn = [
                 $name => [
-                    'class' => str_replace('Connection', 'Redis', $class),
+                    '{}' => str_replace('Connection', 'Redis', $class),
                     'pool' => create([
-                        'class' => RedisPool::class,
+                        '{}' => RedisPool::class,
                         'connection' => $class,
                         'poolConfig' => create([
-                            'class' => RedisPoolConfig::class,
+                            '{}' => RedisPoolConfig::class,
                             'minActive' => intval($min),
                             'maxActive' => intval($max),
                             'maxWait' => $wait,

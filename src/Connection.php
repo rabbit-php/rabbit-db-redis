@@ -165,7 +165,7 @@ class Connection extends AbstractConnection
         } else {
             $this->$type = null;
             App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
-            $message = getDI('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
+            $message = config('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
             throw new Exception($message . ';' . $errorDescription, $errorNumber);
         }
     }

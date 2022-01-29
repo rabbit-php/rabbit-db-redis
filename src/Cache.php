@@ -18,7 +18,7 @@ class Cache extends AbstractCache implements CacheInterface
     public function __construct()
     {
         parent::__construct();
-        $this->client = getDI('redis')->get();
+        $this->client = service('redis')->get();
     }
 
     public function get($key, mixed $default = null): mixed
@@ -35,10 +35,10 @@ class Cache extends AbstractCache implements CacheInterface
     public function set($key, mixed $value, $ttl = null): bool
     {
         $key = $this->buildKey($key);
-        if ($ttl === null) {
-            return (bool)$this->client->executeCommand('SET', [$key, $value]);
-        } else {
+        if ((int)$ttl > 0) {
             return (bool)$this->client->executeCommand('SET', [$key, $value, 'EX', $ttl]);
+        } else {
+            return (bool)$this->client->executeCommand('SET', [$key, $value]);
         }
     }
 

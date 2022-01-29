@@ -267,7 +267,7 @@ class ActiveRecord extends BaseActiveRecord
 
     public function getDb(): ConnectionInterface
     {
-        return getDI('redis')->get();
+        return service('redis')->get();
     }
 
     public function primaryKey(): array

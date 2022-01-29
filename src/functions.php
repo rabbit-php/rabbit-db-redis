@@ -9,7 +9,7 @@ if (!function_exists('rlock')) {
     function rlock(callable $function, bool $next = true, string $key = '', float $timeout = 600, string $name = 'default')
     {
         if (null === $lock = LockHelper::getLock("redis:$name")) {
-            $lock = new RedisLock(getDI('redis')->get($name));
+            $lock = new RedisLock(service('redis')->get($name));
             LockHelper::add("redis:$name", $lock);
         }
         return $lock($function, $next, $key, $timeout);

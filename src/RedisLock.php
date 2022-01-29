@@ -20,7 +20,7 @@ final class RedisLock implements LockInterface
 
     public function __construct(Redis $redis = null)
     {
-        $this->redis = $redis ?? getDI('redis')->get();
+        $this->redis = $redis ?? service('redis')->get();
     }
 
     public function __invoke(Closure $function, bool $next = true, string $name = '', float $timeout = 600)
