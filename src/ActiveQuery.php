@@ -8,18 +8,11 @@ use Rabbit\ActiveRecord\ActiveQueryInterface;
 use Rabbit\ActiveRecord\ActiveQueryTrait;
 use Rabbit\ActiveRecord\ActiveRelationTrait;
 use Rabbit\Base\Exception\InvalidArgumentException;
-use Rabbit\Base\Exception\InvalidConfigException;
 use Rabbit\Base\Exception\NotSupportedException;
 use Rabbit\DB\QueryTrait;
 use Rabbit\DB\QueryTraitExt;
 use Rabbit\Pool\ConnectionInterface;
-use ReflectionException;
-use Throwable;
 
-/**
- * Class ActiveQuery
- * @package Rabbit\DB\Redis
- */
 class ActiveQuery implements ActiveQueryInterface
 {
     use QueryTrait;
@@ -63,17 +56,6 @@ class ActiveQuery implements ActiveQueryInterface
         return $models;
     }
 
-    /**
-     * @param string $type
-     * @param string|null $columnName
-     * @return array|bool|float|int|mixed|string|null
-     * @throws InvalidConfigException
-     * @throws ReflectionException
-     * @throws Throwable
-     * @throws \DI\DependencyException
-     * @throws \DI\NotFoundException
-     * @throws \Psr\SimpleCache\InvalidArgumentException
-     */
     protected function executeScript(string $type, string $columnName = null)
     {
         if ($this->primaryModel !== null) {
@@ -222,12 +204,6 @@ class ActiveQuery implements ActiveQueryInterface
         return $model;
     }
 
-    /**
-     * @param string $type
-     * @param string|null $columnName
-     * @return array|float|int|mixed|null
-     * @throws NotSupportedException
-     */
     private function findByPk(string $type, string $columnName = null)
     {
         $needSort = !empty($this->orderBy) && in_array($type, ['All', 'One', 'Column']);
