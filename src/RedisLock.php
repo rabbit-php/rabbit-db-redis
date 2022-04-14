@@ -7,6 +7,7 @@ namespace Rabbit\DB\Redis;
 use Closure;
 use Rabbit\Base\App;
 use Rabbit\Base\Contract\LockInterface;
+use Rabbit\Base\Core\Channel;
 use Rabbit\Base\Helper\ExceptionHelper;
 use Throwable;
 
@@ -16,11 +17,13 @@ use Throwable;
  */
 final class RedisLock implements LockInterface
 {
-    protected readonly ?Redis $redis;
+    protected Redis $redis;
+    protected Channel $channel;
 
     public function __construct(Redis $redis = null)
     {
         $this->redis = $redis ?? service('redis')->get();
+        $this->channel = new Channel();
     }
 
     public function __invoke(Closure $function, bool $next = true, string $name = '', float $timeout = 600)
@@ -28,11 +31,16 @@ final class RedisLock implements LockInterface
         $name = "lock:" . (empty($name) ? uniqid() : $name);
         try {
             $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
-            if ($this->redis->set($name, true, $nx) === null) {
-                if ($next) {
-                    $this->redis->brpop("{$name}_list", (int)$timeout);
-                } else {
-                    return false;
+            if ($this->channel->isFull() && !$next) {
+                return false;
+            }
+            if ($this->channel->push(1) && $next) {
+                if ($this->redis->set($name, true, $nx) === null) {
+                    if ($next) {
+                        $this->redis->brpop("{$name}_list", (int)$timeout);
+                    } else {
+                        return false;
+                    }
                 }
             }
             return $function();
@@ -41,6 +49,9 @@ final class RedisLock implements LockInterface
         } finally {
             $this->redis->del($name);
             $this->redis->rpush("{$name}_list", $name);
+            if ($this->channel->isFull()) {
+                $this->channel->pop();
+            }
         }
     }
 }
