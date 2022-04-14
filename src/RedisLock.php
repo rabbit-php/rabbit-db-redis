@@ -31,11 +31,11 @@ final class RedisLock implements LockInterface
             $channel = $this->channel[$name];
         }
         try {
-            $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
             if ($channel->isFull() && !$next) {
                 return false;
             }
-            if ($channel->push(1) && $next) {
+            if ($channel->push(1, $timeout)) {
+                $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
                 if ($this->redis->set($name, true, $nx) === null) {
                     if ($next) {
                         $this->redis->brpop("{$name}_list", (int)$timeout);
@@ -52,8 +52,6 @@ final class RedisLock implements LockInterface
             $this->redis->rpush("{$name}_list", $name);
             if ($channel->isFull()) {
                 $channel->pop();
-            } else {
-                unset($this->channel[$name]);
             }
         }
     }
