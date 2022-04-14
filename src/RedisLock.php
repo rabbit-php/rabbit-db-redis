@@ -28,10 +28,12 @@ final class RedisLock implements LockInterface
         $name = "lock:" . (empty($name) ? uniqid() : $name);
         try {
             $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
-            if ($this->redis->set($name, true, $nx) === null && $next) {
-                $this->redis->brpop("{$name}_list", (int)$timeout);
-            } else {
-                return false;
+            if ($this->redis->set($name, true, $nx) === null) {
+                if ($next) {
+                    $this->redis->brpop("{$name}_list", (int)$timeout);
+                } else {
+                    return false;
+                }
             }
             return $function();
         } catch (Throwable $throwable) {
