@@ -111,7 +111,9 @@ class PhpRedis extends AbstractConnection
                         $data = $this->conn->$name($key, array_reverse($args));
                         break;
                     case 'eval':
-                        $data = $this->conn->$name(array_shift($args), $args);
+                        $script = array_shift($args);
+                        $num = array_shift($args);
+                        $data = $this->conn->$name($script, $args, $num);
                         break;
                     default:
                         $data = $this->conn->$name(...$args);

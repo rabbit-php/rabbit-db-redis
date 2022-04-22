@@ -25,9 +25,8 @@ final class RedisLock implements LockInterface
         $name = "lock:{$name}";
         lock($name, function () use ($name, $timeout, $function): void {
             try {
-                $nx = $timeout > 0 ? ['NX', 'EX' => (int)$timeout] : ['NX'];
-                if ($this->redis->set($name, $name, $nx) === null) {
-                    $this->redis->brpop("{$name}_list", (int)$timeout); 
+                if ((int)$this->redis->setnx($name, $name) === 0) {
+                    $this->redis->brpop("{$name}_list", (int)$timeout);
                 }
                 $function();
             } catch (Throwable $throwable) {
