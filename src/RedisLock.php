@@ -26,6 +26,7 @@ final class RedisLock implements LockInterface
         lock($name, function () use ($name, $timeout, $function): void {
             try {
                 if ((int)$this->redis->setnx($name, $name) === 0) {
+                    $this->redis->eval("if redis.call('llen',KEYS[1])==0 then redis.call('RPUSH',KEYS[1],ARGV[1]) end return true", 1, "{$name}_list", $name);
                     $this->redis->brpop("{$name}_list", (int)$timeout);
                 }
                 $function();
