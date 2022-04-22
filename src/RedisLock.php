@@ -25,8 +25,10 @@ final class RedisLock implements LockInterface
         $name = "lock:{$name}";
         lock($name, function () use ($name, $timeout, $function): void {
             try {
-                if ((int)$this->redis->setnx($name, $name) === 0) {
-                    $this->redis->eval("if redis.call('llen',KEYS[1])==0 then redis.call('RPUSH',KEYS[1],ARGV[1]) end return true", 1, "{$name}_list", $name);
+                if ((int)$this->redis->eval("local ret = redis.call('setnx',KEYS[1],ARGV[1]) 
+                if ret==0 then 
+                if redis.call('llen',KEYS[2])==0 
+                then redis.call('RPUSH',KEYS[2],ARGV[1]) end end return ret", 2, $name, "{$name}_list", $name) === 0) {
                     $this->redis->brpop("{$name}_list", (int)$timeout);
                 }
                 $function();
