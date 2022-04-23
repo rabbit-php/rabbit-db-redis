@@ -24,11 +24,12 @@ final class RedisLock implements LockInterface
     {
         $name = "lock:{$name}";
         lock($name, function () use ($name, $timeout, $function): void {
+            $time = time();
             try {
-                $this->redis->eval("if redis.call('exists',KEYS[1])==1 then
+                $this->redis->eval("redis.call('setnx',KEYS[1],ARGV[1]) 
                 if redis.call('llen',KEYS[2])==0 
-                then redis.call('RPUSH',KEYS[2],ARGV[1]) end end return 1", 2, $name, "{$name}_list", $name);
-                if ((int)$this->redis->setnx($name, $name) === 0) {
+                then redis.call('RPUSH',KEYS[2],ARGV[1]) end return 1", 2, $name, "{$name}_list", $time);
+                if ((int)$this->redis->setnx($name, $time) === 0) {
                     $this->redis->brpop("{$name}_list", (int)$timeout);
                 }
                 $function();
@@ -36,7 +37,7 @@ final class RedisLock implements LockInterface
                 App::error(ExceptionHelper::dumpExceptionToString($throwable));
             } finally {
                 $this->redis->eval("if redis.call('llen',KEYS[2])==0 
-                then redis.call('RPUSH',KEYS[2],ARGV[1]) end return 1", 2, $name, "{$name}_list", $name);
+                then redis.call('RPUSH',KEYS[2],ARGV[1]) end return 1", 2, $name, "{$name}_list", $time);
             }
         }, $next, (int)$timeout);
     }
