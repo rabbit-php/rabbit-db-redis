@@ -10,7 +10,6 @@ use Rabbit\Pool\PoolManager;
 use Rabbit\Base\Core\Exception;
 use Rabbit\Base\Helper\ArrayHelper;
 use Rabbit\Pool\AbstractConnection;
-use Rabbit\Base\Exception\NotSupportedException;
 
 class Connection extends AbstractConnection
 {
@@ -27,6 +26,8 @@ class Connection extends AbstractConnection
     private ?float $connectionTimeout = null;
 
     private ?float $dataTimeout = null;
+
+    private ?float $dyTimeout = null;
 
     private int $socketClientFlags = STREAM_CLIENT_CONNECT;
 
@@ -61,6 +62,11 @@ class Connection extends AbstractConnection
             fclose($this->_socketSlave);
             $this->_socketSlave = null;
         }
+    }
+
+    public function setTimeout(float $timeout): void
+    {
+        $this->dyTimeout = $timeout;
     }
 
     public function executeCommand(string $name, array $params = []): array|bool|null|string
@@ -149,7 +155,13 @@ class Connection extends AbstractConnection
             $this->socketClientFlags
         );
         if ($this->$type) {
-            if ($this->dataTimeout !== null) {
+            if ($this->dyTimeout !== null) {
+                stream_set_timeout(
+                    $this->$type,
+                    $timeout = (int)$this->dyTimeout,
+                    (int)(($this->dyTimeout - $timeout) * 1000000)
+                );
+            } elseif ($this->dataTimeout !== null) {
                 stream_set_timeout(
                     $this->$type,
                     $timeout = (int)$this->dataTimeout,
@@ -204,9 +216,28 @@ class Connection extends AbstractConnection
 
     private function parseResponse(string $command, string $socket): array|bool|null|string
     {
-        if (($line = @fgets($this->$socket)) === false) {
-            throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
+        if ($this->dyTimeout !== null) {
+            stream_set_timeout(
+                $this->$socket,
+                $timeout = (int)$this->dyTimeout,
+                (int)(($this->dyTimeout - $timeout) * 1000000)
+            );
         }
+        try {
+            if (($line = @fgets($this->$socket)) === false) {
+                throw new SocketException("Failed to read from socket.\nRedis command was: " . $command);
+            }
+        } finally {
+            if ($this->dyTimeout !== null) {
+                $this->dyTimeout = null;
+                stream_set_timeout(
+                    $this->$socket,
+                    $timeout = (int)$this->dataTimeout,
+                    (int)(($this->dataTimeout - $timeout) * 1000000)
+                );
+            }
+        }
+
         $type = $line[0];
         $line = mb_substr($line, 1, -2, '8bit');
         switch ($type) {
