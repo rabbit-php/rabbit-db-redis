@@ -86,7 +86,7 @@ class Redis implements ConnectionInterface
         try {
             return $function($conn);
         } catch (\Throwable $exception) {
-            App::error($exception->getMessage(), 'redis');
+            App::error($exception->getMessage());
             throw $exception;
         } finally {
             $conn->release(true);
@@ -104,7 +104,7 @@ class Redis implements ConnectionInterface
         try {
             return $client->$method(...$arguments);
         } catch (Throwable $exception) {
-            App::error($exception->getMessage(), 'redis');
+            App::error($exception->getMessage());
             throw $exception;
         } finally {
             $client->release(true);

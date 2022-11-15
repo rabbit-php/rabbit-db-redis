@@ -11,7 +11,6 @@ use Rabbit\Base\Core\Channel;
 
 class SentinelsManager
 {
-    const LOG_KEY = 'redis';
     protected readonly Channel $channel;
     protected int $current = 0;
 
@@ -76,10 +75,10 @@ class SentinelsManager
                 $connectionName = $connection->unixSocket;
             }
             if ($r) {
-                App::info("Sentinel @{$connectionName} gave $type addr: {$r['ip']}:{$r['port']}", self::LOG_KEY);
+                App::info("Sentinel @{$connectionName} gave $type addr: {$r['ip']}:{$r['port']}");
                 return [$r['ip'], (int)$r['port']];
             } else {
-                App::error("Did not get any master from sentinel @{$connectionName}", self::LOG_KEY);
+                App::error("Did not get any master from sentinel @{$connectionName}");
             }
         }
         throw new Exception("Master could not be discovered");

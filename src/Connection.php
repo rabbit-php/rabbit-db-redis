@@ -47,7 +47,7 @@ class Connection extends AbstractConnection
     {
         if ($this->_socket !== null) {
             $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
-            App::warning('Closing DB connection: ' . $connection, 'redis');
+            App::warning('Closing DB connection: ' . $connection);
             if ($quit) {
                 try {
                     $this->executeCommand('QUIT');
@@ -84,7 +84,7 @@ class Connection extends AbstractConnection
         foreach ($params as $arg) {
             $command .= '$' . mb_strlen((string)$arg, '8bit') . "\r\n" . $arg . "\r\n";
         }
-        App::debug("Executing Redis Command: {$name}", 'redis');
+        App::debug("Executing Redis Command: {$name}");
         $this->open();
         $retries = $this->getPool()->getPoolConfig()->getMaxRetry();
         $retries = $retries > 0 ? $retries : 1;
@@ -146,7 +146,7 @@ class Connection extends AbstractConnection
         $this->database = isset($config['db']) && (0 <= $config['db'] && $config['db'] <= 16) ? intval($config['db']) : 0;
         $password = isset($config['password']) ? $config['password'] : null;
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port) . ', database=' . $this->database;
-        App::debug('Opening redis DB connection: ' . $connection, 'redis');
+        App::debug('Opening redis DB connection: ' . $connection);
         $this->$type = @stream_socket_client(
             $this->unixSocket ? 'unix://' . $this->unixSocket : 'tcp://' . $this->hostname . ':' . $this->port,
             $errorNumber,
@@ -176,7 +176,7 @@ class Connection extends AbstractConnection
             }
         } else {
             $this->$type = null;
-            App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription", 'redis');
+            App::error("Failed to open redis DB connection ($connection): $errorNumber - $errorDescription");
             $message = config('debug') ? "Failed to open redis DB connection ($connection): $errorNumber - $errorDescription" : 'Failed to open DB connection.';
             throw new Exception($message . ';' . $errorDescription, $errorNumber);
         }

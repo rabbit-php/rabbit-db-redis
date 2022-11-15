@@ -34,13 +34,13 @@ class SentinelConnection
             return true;
         }
         $connection = ($this->unixSocket ?: $this->hostname . ':' . $this->port);
-        App::info('Opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
+        App::info('Opening redis sentinel connection: ' . $connection);
         $this->_socket = new Client(SWOOLE_SOCK_TCP);
         $retries = $this->retry;
         $retries = $retries > 0 ? $retries : 1;
         while ($retries--) {
             if ($this->_socket->connect($this->hostname, $this->port, $this->connectionTimeout ?? 3) === false) {
-                App::warning('Failed opening redis sentinel connection: ' . $connection, SentinelsManager::LOG_KEY);
+                App::warning('Failed opening redis sentinel connection: ' . $connection);
                 continue;
             }
             $this->_socket->set([
